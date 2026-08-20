@@ -1,0 +1,17 @@
+{
+  "name": "pi-extensions",
+  "version": "1.0.0",
+  "description": "Personal pi (coding agent) extensions: pin-model keeps the default model fixed across sessions",
+  "keywords": [
+    "pi-package"
+  ],
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
