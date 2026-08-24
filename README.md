@@ -1,17 +1,17 @@
-# pi-extensions
+# pi-utils
 
 Extensions for [pi](https://pi.dev) (`@earendil-works/pi-coding-agent`).
 
 ## Install
 
 ```bash
-pi install git:github.com/yy003x/pi-extensions
+pi install git:github.com/yy003x/pi-utils
 ```
 
 Pin a version with a tag ref:
 
 ```bash
-pi install git:github.com/yy003x/pi-extensions@v1.0.0
+pi install git:github.com/yy003x/pi-utils@v1.0.0
 ```
 
 ## Extensions

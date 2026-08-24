@@ -1,7 +1,7 @@
 {
-  "name": "pi-extensions",
+  "name": "pi-utils",
   "version": "1.0.0",
-  "description": "Personal pi (coding agent) extensions: pin-model keeps the default model fixed across sessions",
+  "description": "General-purpose everyday pi (coding agent) extensions",
   "keywords": [
     "pi-package"
   ],
