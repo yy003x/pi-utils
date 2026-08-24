@@ -1,11 +1,34 @@
 {
   "name": "pi-utils",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "General-purpose everyday pi (coding agent) extensions",
   "keywords": [
     "pi-package"
   ],
   "license": "MIT",
+  "author": "yy003x",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git"
+  },
+  "bugs": {
+    "url": "https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils/-/issues"
+  },
+  "homepage": "https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "type": "module",
+  "files": [
+    "extensions/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc -p tsconfig.json"
+  },
   "pi": {
     "extensions": [
       "./extensions"
@@ -13,5 +36,15 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
   }
 }

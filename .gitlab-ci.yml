@@ -1,0 +1,10 @@
+stages:
+  - verify
+
+verify:
+  stage: verify
+  image: node:24
+  script:
+    - npm ci --ignore-scripts --no-fund --no-audit
+    - npm run typecheck
+    - npm test
