@@ -1,7 +1,7 @@
 {
   "name": "pi-utils",
-  "version": "1.1.0",
-  "description": "General-purpose everyday pi (coding agent) extensions",
+  "version": "2.0.0",
+  "description": "Personal everyday extensions for the Pi coding agent",
   "keywords": [
     "pi-package"
   ],
@@ -31,19 +31,32 @@
   },
   "pi": {
     "extensions": [
-      "./extensions"
+      "./extensions/statusline/index.ts",
+      "./extensions/tool-activity/index.ts",
+      "./extensions/session-meta/index.ts",
+      "./extensions/turn-metrics/index.ts"
     ]
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-ai": "^0.86.0",
+    "@earendil-works/pi-coding-agent": "^0.86.0",
+    "@earendil-works/pi-tui": "^0.86.0"
   },
   "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
     "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "0.84.2",
+    "@earendil-works/pi-ai": "0.86.0",
+    "@earendil-works/pi-coding-agent": "0.86.0",
+    "@earendil-works/pi-tui": "0.86.0",
     "@types/node": "24.10.1",
     "typescript": "5.9.3"
   }

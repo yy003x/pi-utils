@@ -1,6 +1,6 @@
 # pi-utils
 
-Extensions for [pi](https://pi.dev) (`@earendil-works/pi-coding-agent`).
+Personal everyday extensions for [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`). The package improves the interactive session without registering model providers, reading credentials, or modifying provider requests.
 
 ## Install
 
@@ -13,7 +13,7 @@ pi install git:gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git
 Pin a version with a tag ref:
 
 ```bash
-pi install git:gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git@v1.1.0
+pi install git:gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git@v2.0.0
 ```
 
 Development:
@@ -26,53 +26,58 @@ npm test
 
 ## Extensions
 
-### pin-model
+### statusline
 
-Keeps the default model fixed across sessions.
+Owns the interactive footer and keeps frequently used session data together:
 
-By default, every `/model` selection or `Ctrl+P` cycle writes the newly
-selected model into `settings.json` (`defaultProvider`/`defaultModel`), so
-the next pi session inherits it. This extension captures the values from
-`settings.json` at startup as the "pin", then reverts the two fields right
-after each user-initiated model switch, so the switch only applies to the
-current session.
+- working directory, Git branch, and session name;
+- context usage and auto-compaction state;
+- input/output tokens, cache reads/writes, cache hit rate, and cost;
+- current model and thinking level;
+- the latest duration published by `turn-metrics`;
+- `subscription-usage` and unrelated extension statuses when available.
 
-How it works:
+The extension consumes display status from other extensions but does not fetch subscription data or inspect credentials. It is the only extension in this package that calls `setFooter()`.
 
-1. On startup, reads `defaultProvider`/`defaultModel` from
-   `settings.json` (respects `PI_CODING_AGENT_DIR`) and stores them as the pin.
-   If the file is unreadable or not valid JSON, the extension stays loaded but
-   inert and `/model-pin` reports the error — it never rewrites a broken file.
-2. On `model_select` (sources `set` and `cycle`), it waits for pi's queued
-   settings write to land on disk, then reverts the two fields. `restore`
-   events would be reverted the same way (pi does not currently emit them).
-3. On `session_shutdown`, retries the revert if the first attempt failed.
+### tool-activity
 
-Concurrency and integrity guarantees:
+Shows ephemeral activity above the editor while Pi is working:
 
-- Cross-process locking uses the same on-disk protocol as pi's own
-  SettingsManager (a `settings.json.lock` directory, stale after 10 seconds),
-  so pi's writes and this extension's writes exclude each other.
-- Writes are atomic (same-directory temp file + rename) and field-level: only
-  `defaultProvider` and `defaultModel` are touched; every other field — and
-  concurrent edits made by other pi processes — is preserved.
-- Restore is compare-and-set: the file is only rewritten while its current
-  default model equals the value this process observed being persisted. A
-  second pi process that pins a different model via `/model-pin set` is never
-  clobbered when this process exits.
+- agent work without an active tool;
+- concurrent tool names;
+- blocking extension prompts that are waiting for user input.
 
-Commands:
+It only observes public lifecycle events. It does not replace tools, modify arguments, or persist tool results.
 
-- `/model-pin` — show the current pinned model
-- `/model-pin set` — pin the current session model as the new default (this
-  one really persists to `settings.json`)
+### session-meta
 
-Known limitations:
+Uses the active model's normal response to maintain interactive session metadata without an extra model request:
 
-- If the process is killed (SIGKILL), the shutdown fallback cannot run; normal
-  exits are covered. The next model switch in another session restores the pin.
-- The pin is captured per pi process at startup. Editing `settings.json`
-  while pi is running requires a restart (or `/model-pin set`) to move the pin.
+- current terminal title;
+- one automatic session name for an unnamed session;
+- a short factual recap after a final tool-free response.
+
+A small hidden envelope is requested through a structured system-prompt section. The extension removes envelopes from streaming display and finalized assistant messages. Invalid or missing metadata is ignored without affecting the answer. Recaps are stored as display-only custom entries and are not sent back to the model.
+
+### turn-metrics
+
+Measures one settled agent run from its first `agent_start` through `agent_settled`, including automatic retries and tool work. It records:
+
+- elapsed time;
+- tool execution count;
+- token, cache, and cost deltas.
+
+The result is stored as a display-only custom entry and published to `statusline` through `pi-utils/turn-metrics/updated/v1`.
+
+## Model selection
+
+Pi 0.84.3 and later keep ordinary `/model`, Ctrl+P, and `/thinking` selections session-local. Use Ctrl+S inside the selector to persist a new default. `pi-utils` therefore does not intercept model selection or edit `defaultProvider` / `defaultModel`.
+
+The former `pin-model` extension was removed in v2 because its behavior is now native to Pi and could undo an explicit Ctrl+S save.
+
+## Scope
+
+`pi-utils` is a personal package, not a harness distribution. It does not manage Pi settings, keybindings, model lists, providers, authentication, skills, or other packages.
 
 ## License
 
