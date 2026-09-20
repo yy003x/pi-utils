@@ -154,16 +154,34 @@ describe("extension lifecycle integration", () => {
 		assert.equal(harness.emitted[0]?.channel, "pi-utils/turn-metrics/updated/v1");
 	});
 
-	it("statusline is the only extension that registers and clears a footer", async () => {
+	it("statusline renders model context usage on the second line and owns the footer lifecycle", async () => {
 		const harness = createHarness();
 		statusline(harness.api);
 		const ctx = baseContext({
 			isProjectTrusted: () => false,
+			model: { id: "test-model", contextWindow: 128_000, reasoning: false },
 			modelRegistry: { isUsingOAuth: () => false, getProvider: () => undefined },
-			getContextUsage: () => undefined,
+			getContextUsage: () => ({ tokens: 10_000, contextWindow: 128_000, percent: 7.8 }),
 		});
 		await invoke(harness, "session_start", { type: "session_start" }, ctx);
-		assert.equal(typeof ctx.footerCalls.at(-1), "function");
+		const factory = ctx.footerCalls.at(-1) as (tui: any, theme: any, footerData: any) => {
+			render(width: number): string[];
+		};
+		assert.equal(typeof factory, "function");
+		const footer = factory(
+			{ requestRender() {} },
+			{ fg(_color: string, text: string) { return text; } },
+			{
+				onBranchChange() { return () => {}; },
+				getGitBranch: () => null,
+				getExtensionStatuses: () => new Map(),
+				getAvailableProviderCount: () => 1,
+			},
+		);
+		const lines = footer.render(120);
+		assert.doesNotMatch(lines[0] ?? "", /10k 8%/);
+		assert.match(lines[1] ?? "", /10k 8%/);
+
 		await invoke(harness, "session_shutdown", { type: "session_shutdown" }, ctx);
 		assert.equal(ctx.footerCalls.at(-1), undefined);
 	});

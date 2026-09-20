@@ -99,10 +99,10 @@ export default function statusline(pi: ExtensionAPI): void {
 
 					const model = ctx.model;
 					const context = ctx.getContextUsage();
+					const tokens = context?.tokens;
 					const percent = context?.percent;
-					const window = formatTokens(context?.contextWindow ?? model?.contextWindow ?? 0);
 					const auto = autoCompactEnabled(ctx) ? " (auto)" : "";
-					const contextText = `${percent == null ? "?" : `${percent.toFixed(1)}%`}/${window}${auto}`;
+					const contextText = `${tokens == null ? "?" : formatTokens(tokens)} ${percent == null ? "?%" : `${Math.round(percent)}%`}${auto}`;
 					const contextStat = theme.fg(
 						(percent ?? 0) > 90 ? "error" : (percent ?? 0) > 70 ? "warning" : "dim",
 						contextText,
