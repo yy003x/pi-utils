@@ -35,7 +35,7 @@ Owns the interactive footer and keeps frequently used session data together:
 - input/output tokens, cache reads/writes, cache hit rate, and cost;
 - current model and thinking level;
 - the latest duration published by `turn-metrics`;
-- `subscription-usage` and unrelated extension statuses when available.
+- `pi-sinan-usage` and unrelated extension statuses when available.
 
 The extension consumes display status from other extensions but does not fetch subscription data or inspect credentials. It is the only extension in this package that calls `setFooter()`.
 

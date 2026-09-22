@@ -9,7 +9,7 @@ import {
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { collectUsageTotals, formatDuration, formatTokens, oneLine } from "./core.ts";
 
-const USAGE_STATUS_KEY = "subscription-usage";
+const USAGE_STATUS_KEY = "pi-sinan-usage";
 const METRICS_EVENT = "pi-utils/turn-metrics/updated/v1";
 
 interface TurnMetricsEvent {
