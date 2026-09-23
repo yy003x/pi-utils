@@ -1,10 +1,11 @@
+import { closeSync, constants, openSync, realpathSync, writeFileSync } from "node:fs";
+import { dirname, isAbsolute, resolve } from "node:path";
 import type { AssistantMessage, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
-import { hideStreamingMetadata, parseAndStripMetadata } from "./core.ts";
+import { branchRecaps, hideStreamingMetadata, parseAndStripMetadata, recapMarkdown, RECAP_ENTRY } from "./core.ts";
 
 const PROMPT_SECTION = "pi_utils_session_meta";
-const RECAP_ENTRY = "pi-utils:session-meta:recap";
 
 interface RecapEntry {
 	recap: string;
@@ -42,6 +43,36 @@ export default function sessionMeta(pi: ExtensionAPI): void {
 		const data = entry.data;
 		if (!data || typeof data.recap !== "string") return undefined;
 		return new Text(theme.fg("dim", `Recap · ${data.recap}`), 1, 0);
+	});
+
+	pi.registerCommand("utils-recap", {
+		description: "View current branch recaps, or export <workspace-relative .md> (new file only)",
+		async handler(args, ctx) {
+			const recaps = branchRecaps(ctx.sessionManager.getBranch());
+			const input = args.trim();
+			if (!input) {
+				if (ctx.hasUI) ctx.ui.notify(recaps.length ? recaps.map((recap, index) => `${index + 1}. ${recap}`).join("\n") : "No recaps on this branch.", "info");
+				return;
+			}
+			const match = /^export\s+([^/\\]+\.md)$/.exec(input);
+			const requested = match?.[1];
+			if (!requested || requested === "." || requested === ".." || isAbsolute(requested) || !recaps.length) {
+				if (ctx.hasUI) ctx.ui.notify("Expected: /utils-recap export <workspace-root filename.md> (with recaps)", "warning");
+				return;
+			}
+			try {
+				// Keep export at the workspace root. Opening through an independently
+				// validated nested parent path permits a directory-symlink swap race.
+				const root = realpathSync(ctx.cwd);
+				const target = resolve(root, requested);
+				if (dirname(target) !== root) throw new Error("outside workspace root");
+				const fd = openSync(target, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | (constants.O_NOFOLLOW ?? 0), 0o600);
+				try { writeFileSync(fd, recapMarkdown(recaps), "utf8"); } finally { closeSync(fd); }
+				if (ctx.hasUI) ctx.ui.notify(`Recaps exported to ${requested}`, "info");
+			} catch {
+				if (ctx.hasUI) ctx.ui.notify("Recap export failed: use a new .md file directly in the workspace root", "warning");
+			}
+		},
 	});
 
 	pi.registerMarkdownTransformer((markdown, context) => {

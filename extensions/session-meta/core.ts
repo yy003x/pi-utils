@@ -73,6 +73,25 @@ export function parseAndStripMetadata(text: string): ParsedMetadata {
 	};
 }
 
+export const RECAP_ENTRY = "pi-utils:session-meta:recap";
+
+export function branchRecaps(entries: readonly unknown[], limit = 30): string[] {
+	const recaps: string[] = [];
+	for (const entry of entries) {
+		if (!isObject(entry) || entry.type !== "custom" || entry.customType !== RECAP_ENTRY || !isObject(entry.data)) continue;
+		const data = entry.data;
+		if (typeof data.recap !== "string" || typeof data.createdAt !== "number" || !Number.isSafeInteger(data.createdAt) || data.createdAt < 0 ||
+			!data.recap || [...data.recap].length > 120 || sanitizeLabel(data.recap, 120) !== data.recap) continue;
+		recaps.push(data.recap);
+	}
+	return recaps.slice(-limit);
+}
+
+export function recapMarkdown(recaps: readonly string[]): string {
+	const escape = (text: string) => text.replace(/[\\`*_{}\[\]()#+.!<>|~-]/g, "\\$&");
+	return `# Current branch recaps\n\n${recaps.length ? recaps.map((recap) => `- ${escape(recap)}`).join("\n") : "No recaps on this branch."}\n`;
+}
+
 export function hideStreamingMetadata(text: string): string {
 	return text
 		.split(/\r?\n/)

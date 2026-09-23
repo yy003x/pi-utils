@@ -8,8 +8,10 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { collectUsageTotals, formatDuration, formatTokens, oneLine } from "./core.ts";
+import { getUtilsSettings } from "../settings.ts";
 
-const USAGE_STATUS_KEY = "subscription-usage";
+const USAGE_STATUS_KEYS = new Set(["pi-sinan-usage"]);
+const FAST_STATUS_KEY = "pi-sinan-fast";
 const METRICS_EVENT = "pi-utils/turn-metrics/updated/v1";
 
 interface TurnMetricsEvent {
@@ -83,6 +85,7 @@ export default function statusline(pi: ExtensionAPI): void {
 				render(width: number): string[] {
 					if (width < 1) return [""];
 					const dim = (text: string) => theme.fg("dim", text);
+					const settings = getUtilsSettings(ctx).statusline;
 					const totals = collectUsageTotals(ctx.sessionManager.getEntries());
 
 					let cwd = ctx.sessionManager.getCwd();
@@ -112,24 +115,27 @@ export default function statusline(pi: ExtensionAPI): void {
 					if (totals.input) tokenStats.push(`↑${formatTokens(totals.input)}`);
 					if (totals.output) tokenStats.push(`↓${formatTokens(totals.output)}`);
 					const stats = [...tokenStats];
-					if (totals.cacheRead) stats.push(`R${formatTokens(totals.cacheRead)}`);
-					if (totals.cacheWrite) stats.push(`W${formatTokens(totals.cacheWrite)}`);
-					if ((totals.cacheRead || totals.cacheWrite) && totals.latestCacheHitRate !== undefined) {
+					if (settings.showCache && totals.cacheRead) stats.push(`R${formatTokens(totals.cacheRead)}`);
+					if (settings.showCache && totals.cacheWrite) stats.push(`W${formatTokens(totals.cacheWrite)}`);
+					if (settings.showCache && (totals.cacheRead || totals.cacheWrite) && totals.latestCacheHitRate !== undefined) {
 						stats.push(`CH${totals.latestCacheHitRate.toFixed(1)}%`);
 					}
-					if (totals.cost || isSubscriptionModel(ctx)) {
+					if (settings.showCost && (totals.cost || isSubscriptionModel(ctx))) {
 						stats.push(`$${totals.cost.toFixed(3)}${isSubscriptionModel(ctx) ? " (sub)" : ""}`);
 					}
-					if (latestDurationMs !== undefined) stats.push(`⏱${formatDuration(latestDurationMs)}`);
+					if (settings.showDuration && latestDurationMs !== undefined) stats.push(`⏱${formatDuration(latestDurationMs)}`);
 
 					const statuses = footerData.getExtensionStatuses();
-					const quota = oneLine(statuses.get(USAGE_STATUS_KEY) ?? "");
-					const quotaSuffix = quota ? `  ${quota}` : "";
+					const quota = settings.showQuota ? [...USAGE_STATUS_KEYS].map((key) => oneLine(statuses.get(key) ?? "")).filter(Boolean).join("  ") : "";
+					const fast = oneLine(statuses.get(FAST_STATUS_KEY) ?? "");
+					const statusSuffix = [quota, fast].filter(Boolean).join("  ");
+					const quotaSuffix = statusSuffix ? `  ${statusSuffix}` : "";
 					const thinking = pi.getThinkingLevel();
 					const modelText = `${model?.id ?? "no-model"}${model?.reasoning ? ` • ${thinking === "off" ? "thinking off" : thinking}` : ""}`;
 					const rightOptions = footerData.getAvailableProviderCount() > 1 && model
 						? [`(${model.provider}) ${modelText}`, modelText]
 						: [modelText];
+					// Full, compact and narrow tiers. Never reintroduce fields disabled by settings.
 					const leftOptions = [
 						`${stats.length ? `${dim(stats.join(" "))} ` : ""}${contextStat}${quotaSuffix}`,
 						`${tokenStats.length ? `${dim(tokenStats.join(" "))} ` : ""}${contextStat}${quotaSuffix}`,
@@ -137,7 +143,7 @@ export default function statusline(pi: ExtensionAPI): void {
 					];
 
 					let statsLine: string | undefined;
-					for (const left of leftOptions) {
+					for (const left of width < (settings.compactAtWidth ?? 0) ? leftOptions.slice(1) : leftOptions) {
 						for (const right of rightOptions) {
 							const padding = width - visibleWidth(left) - visibleWidth(right);
 							if (padding >= 2) {
@@ -148,7 +154,7 @@ export default function statusline(pi: ExtensionAPI): void {
 						if (statsLine !== undefined) break;
 					}
 					if (statsLine === undefined) {
-						const left = truncateToWidth(quota || contextStat, width, "…");
+						const left = truncateToWidth(statusSuffix || contextStat, width, "…");
 						const room = width - visibleWidth(left) - 2;
 						statsLine = room > 0
 							? `${left}  ${dim(truncateToWidth(modelText, room, "…"))}`
@@ -160,7 +166,7 @@ export default function statusline(pi: ExtensionAPI): void {
 						truncateToWidth(statsLine, width, "…"),
 					];
 					const others = [...statuses.entries()]
-						.filter(([key, text]) => key !== USAGE_STATUS_KEY && Boolean(text))
+						.filter(([key, text]) => !USAGE_STATUS_KEYS.has(key) && key !== FAST_STATUS_KEY && Boolean(text))
 						.sort(([a], [b]) => a.localeCompare(b))
 						.map(([, text]) => oneLine(text));
 					if (others.length) lines.push(truncateToWidth(others.join("  "), width, "…"));

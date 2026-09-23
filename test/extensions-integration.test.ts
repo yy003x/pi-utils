@@ -13,6 +13,7 @@ function createHarness() {
 	const busHandlers = new Map<string, Array<(value: unknown) => void>>();
 	const entries: Array<{ type: string; data: unknown }> = [];
 	const emitted: Array<{ channel: string; value: unknown }> = [];
+	const commands = new Map<string, (args: string, ctx: any) => Promise<void>>();
 	let sessionName: string | undefined;
 	let markdownTransformer: ((markdown: string, context: any) => string) | undefined;
 
@@ -24,6 +25,9 @@ function createHarness() {
 			return () => {};
 		},
 		registerEntryRenderer() {},
+		registerCommand(name: string, options: { handler: (args: string, ctx: any) => Promise<void> }) {
+			commands.set(name, options.handler);
+		},
 		registerMarkdownTransformer(transformer: (markdown: string, context: any) => string) {
 			markdownTransformer = transformer;
 		},
@@ -55,6 +59,7 @@ function createHarness() {
 		handlers,
 		entries,
 		emitted,
+		commands,
 		getSessionName: () => sessionName,
 		getMarkdownTransformer: () => markdownTransformer,
 	};
@@ -71,6 +76,7 @@ function baseContext(overrides: Record<string, unknown> = {}) {
 	const widgetCalls: Array<{ key: string; content: string[] | undefined }> = [];
 	const footerCalls: unknown[] = [];
 	const titles: string[] = [];
+	const notices: string[] = [];
 	const entries: unknown[] = [];
 	return {
 		mode: "tui",
@@ -78,18 +84,22 @@ function baseContext(overrides: Record<string, unknown> = {}) {
 		cwd: "/tmp/project",
 		ui: {
 			setTitle(title: string) { titles.push(title); },
+			notify(message: string) { notices.push(message); },
 			setWidget(key: string, content: string[] | undefined) { widgetCalls.push({ key, content }); },
 			setFooter(factory: unknown) { footerCalls.push(factory); },
 		},
 		sessionManager: {
 			getSessionName: () => currentName,
 			getEntries: () => entries,
+			getBranch: () => entries,
 			getCwd: () => "/tmp/project",
 		},
 		setCurrentName(value: string | undefined) { currentName = value; },
 		widgetCalls,
 		footerCalls,
 		titles,
+		notices,
+		isProjectTrusted: () => false,
 		entries,
 		...overrides,
 	};
@@ -134,7 +144,7 @@ describe("extension lifecycle integration", () => {
 		await invoke(harness, "agent_start", { type: "agent_start" }, ctx);
 		await invoke(harness, "tool_execution_start", { toolCallId: "1", toolName: "read" }, ctx);
 		await invoke(harness, "tool_execution_start", { toolCallId: "2", toolName: "bash" }, ctx);
-		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /Running tools \(2\)/);
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /Tools \(2 concurrent\)/);
 		await invoke(harness, "agent_settled", { type: "agent_settled" }, ctx);
 		assert.equal(ctx.widgetCalls.at(-1)?.content, undefined);
 	});
@@ -144,7 +154,7 @@ describe("extension lifecycle integration", () => {
 		turnMetrics(harness.api);
 		const ctx = baseContext();
 		await invoke(harness, "agent_start", { type: "agent_start" }, ctx);
-		await invoke(harness, "tool_execution_start", { type: "tool_execution_start" }, ctx);
+		await invoke(harness, "tool_execution_start", { type: "tool_execution_start", toolCallId: "a", toolName: "read" }, ctx);
 		ctx.entries.push({
 			type: "message",
 			message: { role: "assistant", usage: { input: 2, output: 1, cacheRead: 0, cacheWrite: 0, cost: { total: 0 } } },

@@ -7,7 +7,7 @@ describe("tool activity core", () => {
 		assert.deepEqual(renderToolActivity({ running: false, tools: [] }), []);
 		assert.deepEqual(renderToolActivity({ running: true, tools: [] }), ["Agent working"]);
 		assert.deepEqual(renderToolActivity({ running: true, waitingTitle: "Choose model", tools: [] }), [
-			"Waiting for input · Choose model",
+			"User wait · Choose model",
 		]);
 		assert.deepEqual(
 			renderToolActivity({
@@ -17,12 +17,12 @@ describe("tool activity core", () => {
 					{ id: "2", name: "mcp__server__search" },
 				],
 			}),
-			["Running tools (2) · read · mcp:server/search"],
+			["Tools (2 concurrent) · read · mcp:server/search"],
 		);
 	});
 
 	it("normalizes namespaced tool names and strips terminal controls", () => {
 		assert.equal(normalizeToolName("mcp__foo__bar"), "mcp:foo/bar");
-		assert.equal(sanitizeActivityText("pick\u001b[31m model\u202E"), "pick [31m model");
+		assert.equal(sanitizeActivityText("pick\u001b[31m model\u202E"), "pick model");
 	});
 });
