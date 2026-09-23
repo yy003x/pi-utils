@@ -184,13 +184,14 @@ describe("extension lifecycle integration", () => {
 			{
 				onBranchChange() { return () => {}; },
 				getGitBranch: () => null,
-				getExtensionStatuses: () => new Map(),
+				getExtensionStatuses: () => new Map([["pi-sinan-usage", "1w 100%"]]),
 				getAvailableProviderCount: () => 1,
 			},
 		);
 		const lines = footer.render(120);
+		assert.equal(lines.length, 2);
 		assert.doesNotMatch(lines[0] ?? "", /10k 8%/);
-		assert.match(lines[1] ?? "", /10k 8%/);
+		assert.match(lines[1] ?? "", /10k 8% \(auto\)  1w 100%/);
 
 		await invoke(harness, "session_shutdown", { type: "session_shutdown" }, ctx);
 		assert.equal(ctx.footerCalls.at(-1), undefined);
