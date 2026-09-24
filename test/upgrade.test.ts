@@ -147,7 +147,7 @@ describe("upgrade integration", () => {
 		assert.match(ctx.notifications[0]!, /Waiting for input/);
 		assert.match(ctx.notifications[1]!, /Run settled/);
 	});
-	it("shows phase, counts, sanitized failed name; renders configurable footer tiers", async () => {
+	it("shows phase and counts without escalating a failed tool; renders configurable footer tiers", async () => {
 		const a = harness(); toolActivity(a.api);
 		const ctx = context(tmpdir());
 		await a.emit("agent_start", {}, ctx);
@@ -155,9 +155,10 @@ describe("upgrade integration", () => {
 		await a.emit("before_provider_request", {}, ctx);
 		assert.match(ctx.widgets.at(-1)?.[0] ?? "", /Provider working/);
 		await a.emit("tool_execution_start", { toolCallId: "x", toolName: "bash\u001b[31m" }, ctx);
-		await a.emit("tool_execution_end", { toolCallId: "x", isError: true }, ctx);
-		assert.match(ctx.widgets.at(-1)?.[0] ?? "", /1 done \/ 0 running.*failed bash/);
 		assert.doesNotMatch(ctx.widgets.at(-1)?.[0] ?? "", /\u001b/);
+		await a.emit("tool_execution_end", { toolCallId: "x", isError: true }, ctx);
+		assert.match(ctx.widgets.at(-1)?.[0] ?? "", /1 done \/ 0 running/);
+		assert.doesNotMatch(ctx.widgets.at(-1)?.[0] ?? "", /failed bash|problem|urgent/i);
 		await a.emit("agent_settled", {}, ctx);
 		await a.emit("ui_prompt_start", { kind: "input", title: "secret input" }, ctx);
 		assert.match(ctx.widgets.at(-1)?.[0] ?? "", /User wait · input/);

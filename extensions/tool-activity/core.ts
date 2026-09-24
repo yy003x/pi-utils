@@ -6,7 +6,6 @@ export interface ToolActivityView {
 	phase?: "agent" | "provider" | "tool" | "user wait";
 	durationMs?: number;
 	completed?: number;
-	lastFailed?: string;
 }
 export function sanitizeActivityText(value: string, maxLength = 80): string {
 	const cleaned = value.replace(/\u001B\][^\u0007]*(?:\u0007|\u001B\\)/g, "")
@@ -22,12 +21,11 @@ export function normalizeToolName(name: string): string {
 export function renderToolActivity(view: ToolActivityView, maxItems = 5): string[] {
 	const suffix = view.durationMs === undefined ? "" : ` · ${Math.floor(view.durationMs / 1000)}s`;
 	const counts = view.completed === undefined ? "" : ` · ${view.completed} done / ${view.tools.length} running`;
-	const failure = view.lastFailed ? ` · failed ${normalizeToolName(view.lastFailed).slice(0, 40)}` : "";
-	if (view.waitingTitle) return [`User wait · ${sanitizeActivityText(view.waitingTitle)}${suffix}${counts}${failure}`];
+	if (view.waitingTitle) return [`User wait · ${sanitizeActivityText(view.waitingTitle)}${suffix}${counts}`];
 	if (view.tools.length > 0) {
 		const visible = view.tools.slice(-maxItems).map((tool) => normalizeToolName(tool.name));
 		const hidden = Math.max(0, view.tools.length - visible.length);
-		return [`Tools (${view.tools.length} concurrent)${suffix}${counts} · ${visible.join(" · ")}${hidden > 0 ? ` · +${hidden}` : ""}${failure}`];
+		return [`Tools (${view.tools.length} concurrent)${suffix}${counts} · ${visible.join(" · ")}${hidden > 0 ? ` · +${hidden}` : ""}`];
 	}
-	return view.running ? [`${view.phase === "provider" ? "Provider" : "Agent"} working${suffix}${counts}${failure}`] : [];
+	return view.running ? [`${view.phase === "provider" ? "Provider" : "Agent"} working${suffix}${counts}`] : [];
 }

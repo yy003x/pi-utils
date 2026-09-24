@@ -52,10 +52,10 @@ The extension consumes display status from other extensions but does not fetch s
 Shows ephemeral activity above the editor while Pi is working:
 
 - agent work without an active tool;
-- concurrent tool names and running duration, completed/running counts and last failed tool name (bounded);
+- concurrent tool names and running duration, completed/running counts;
 - agent/provider/tool/user-wait phase (extension prompt kind only; no arguments or prompt contents).
 
-It only observes public lifecycle events. It does not replace tools, modify arguments, or persist tool results.
+It only observes public lifecycle events. A tool error or nonzero exit alone does not establish an unresolved, urgent problem, and these events do not provide reliable severity or recovery evidence. The widget therefore shows ordinary progress without a problem alert; the original tool result remains available in Pi's tool output for diagnosis. It does not replace tools, modify arguments, or persist tool results.
 
 ### session-meta
 

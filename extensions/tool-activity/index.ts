@@ -5,7 +5,7 @@ const WIDGET_KEY = "pi-utils.tool-activity";
 export default function toolActivity(pi: ExtensionAPI): void {
 	let running = false, completed = 0;
 	let phase: ToolActivityView["phase"] = "agent";
-	let waitingTitle: string | undefined, lastFailed: string | undefined, runStartedAt = 0, waitStartedAt = 0;
+	let waitingTitle: string | undefined, runStartedAt = 0, waitStartedAt = 0;
 	let ticker: ReturnType<typeof setInterval> | undefined;
 	const tools = new Map<string, ToolActivityItem>();
 	const stopTicker = () => { if (ticker) clearInterval(ticker); ticker = undefined; };
@@ -14,13 +14,13 @@ export default function toolActivity(pi: ExtensionAPI): void {
 		const longestToolStart = [...tools.values()].reduce<number | undefined>(
 			(oldest, tool) => tool.startedAt === undefined ? oldest : Math.min(oldest ?? tool.startedAt, tool.startedAt), undefined);
 		const lines = renderToolActivity({ running, waitingTitle, tools: [...tools.values()], phase,
-			durationMs: waitingTitle && waitStartedAt ? Date.now() - waitStartedAt : longestToolStart !== undefined ? Date.now() - longestToolStart : running && runStartedAt ? Date.now() - runStartedAt : undefined, completed, lastFailed });
+			durationMs: waitingTitle && waitStartedAt ? Date.now() - waitStartedAt : longestToolStart !== undefined ? Date.now() - longestToolStart : running && runStartedAt ? Date.now() - runStartedAt : undefined, completed });
 		ctx.ui.setWidget(WIDGET_KEY, lines.length ? lines : undefined, { placement: "aboveEditor" });
 		if ((running || waitingTitle) && !ticker) { ticker = setInterval(() => render(ctx), 1000); ticker.unref(); }
 		if (!running && !waitingTitle) stopTicker();
 	};
 	const reset = (ctx: ExtensionContext) => {
-		running = false; completed = 0; waitingTitle = undefined; lastFailed = undefined;
+		running = false; completed = 0; waitingTitle = undefined;
 		phase = "agent"; runStartedAt = 0; waitStartedAt = 0; tools.clear(); stopTicker(); render(ctx);
 	};
 	pi.on("session_start", (_event, ctx) => reset(ctx));
@@ -37,7 +37,7 @@ export default function toolActivity(pi: ExtensionAPI): void {
 	});
 	pi.on("tool_execution_end", (event, ctx) => {
 		const tool = tools.get(event.toolCallId);
-		if (tool) { completed++; if (event.isError) lastFailed = tool.name; }
+		if (tool) completed++;
 		tools.delete(event.toolCallId);
 		if (!tools.size) { phase = "agent"; }
 		render(ctx);

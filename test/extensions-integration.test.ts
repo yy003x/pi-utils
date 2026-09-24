@@ -149,6 +149,47 @@ describe("extension lifecycle integration", () => {
 		assert.equal(ctx.widgetCalls.at(-1)?.content, undefined);
 	});
 
+	it("tool-activity keeps ordinary progress after a failed bash and successful verification", async () => {
+		const harness = createHarness();
+		toolActivity(harness.api);
+		const ctx = baseContext();
+		await invoke(harness, "agent_start", { type: "agent_start" }, ctx);
+		await invoke(harness, "tool_execution_start", { toolCallId: "failure", toolName: "bash" }, ctx);
+		const result = { content: [{ type: "text", text: "command failed: exit code 1; actual diagnostics" }], details: { exitCode: 1 } };
+		const failure = { toolCallId: "failure", toolName: "bash", isError: true, result };
+		await invoke(harness, "tool_execution_end", failure, ctx);
+		assert.strictEqual(failure.result, result);
+		assert.equal(result.content[0]?.text, "command failed: exit code 1; actual diagnostics");
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /1 done \/ 0 running/);
+		assert.doesNotMatch(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /failed|problem|urgent|error/i);
+
+		await invoke(harness, "tool_execution_start", { toolCallId: "verification", toolName: "bash" }, ctx);
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /1 done \/ 1 running/);
+		await invoke(harness, "tool_execution_end", { toolCallId: "verification", toolName: "bash", isError: false, result: { content: [{ type: "text", text: "checks passed" }] } }, ctx);
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /2 done \/ 0 running/);
+		assert.ok(ctx.widgetCalls.every(({ content }) => !/failed bash|problem|urgent/i.test(content?.join(" ") ?? "")));
+		await invoke(harness, "agent_settled", { type: "agent_settled" }, ctx);
+		assert.equal(ctx.widgetCalls.at(-1)?.content, undefined);
+	});
+
+	it("tool-activity does not infer severity from a nonzero exit or error flag alone", async () => {
+		const harness = createHarness();
+		toolActivity(harness.api);
+		const ctx = baseContext();
+		await invoke(harness, "agent_start", { type: "agent_start" }, ctx);
+		for (const [id, isError] of [["nonzero", false], ["flagged", true]] as const) {
+			await invoke(harness, "tool_execution_start", { toolCallId: id, toolName: "bash" }, ctx);
+			await invoke(harness, "tool_execution_end", { toolCallId: id, toolName: "bash", isError, result: { content: [{ type: "text", text: "exit code 1" }], details: { exitCode: 1 } } }, ctx);
+		}
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /2 done \/ 0 running/);
+		await invoke(harness, "ui_prompt_start", { kind: "input" }, ctx);
+		assert.match(ctx.widgetCalls.at(-1)?.content?.[0] ?? "", /User wait · input.*2 done \/ 0 running/);
+		assert.ok(ctx.widgetCalls.every(({ content }) => !/failed bash|problem|urgent|exit code/i.test(content?.join(" ") ?? "")));
+		await invoke(harness, "ui_prompt_end", {}, ctx);
+		await invoke(harness, "agent_settled", {}, ctx);
+		assert.equal(ctx.widgetCalls.at(-1)?.content, undefined);
+	});
+
 	it("turn-metrics appends and publishes one settled run", async () => {
 		const harness = createHarness();
 		turnMetrics(harness.api);
