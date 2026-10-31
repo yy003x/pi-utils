@@ -1,7 +1,7 @@
 import { homedir } from "node:os";
 import { sep } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { truncateToWidth } from "@earendil-works/pi-tui";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { QUOTA_STATUS } from "./quota/index.ts";
 import { formatRun, type RunStats } from "./run-stats.ts";
 
@@ -26,10 +26,13 @@ export function footerLines(view: FooterView, width: number): string[] {
   if (width < 1) return [];
   const cwd = view.cwd === view.home ? "~" : view.cwd.startsWith(view.home + sep) ? "~" + view.cwd.slice(view.home.length) : view.cwd;
   const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}k` : "—"}`;
-  const model = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" • ");
-  const rest = [view.quota, cwd, view.branch, view.run && formatRun(view.run), ...view.statuses]
-    .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine);
-  return [truncateToWidth([model, context, ...rest].join(width < 80 ? " " : "   "), width)];
+  const right = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" • ");
+  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run), ...view.statuses]
+    .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine).join(" ");
+  const availableLeft = width - visibleWidth(right) - 2;
+  if (availableLeft < 1) return [truncateToWidth(right, width, "...")];
+  const compactLeft = truncateToWidth(left, availableLeft, "...");
+  return [compactLeft + " ".repeat(width - visibleWidth(compactLeft) - visibleWidth(right)) + right];
 }
 export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefined): () => void {
   let redraw = () => {};

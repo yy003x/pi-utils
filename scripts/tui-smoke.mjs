@@ -44,14 +44,14 @@ async function command(input, pattern) {
 try {
   await waitFor(/\(anthropic\) claude-sonnet-4-5 •/);
   await waitFor(/(?:\d+\.\d%|—)\/\d+k/);
-  await command("/run-stats", /暂无运行统计/);
+  await command("/stats", /暂无运行统计/);
   await command("/cd missing", /Directory does not exist/);
   const sourceBefore = readFileSync(sourceFile, "utf8");
   await command(`/cd ${targetDir}`, /Resumed session/);
   await command("/cd", /\/target/);
-  await command("/run-stats", /暂无运行统计/);
+  await command("/stats", /暂无运行统计/);
   await command("/reload", /Reloaded keybindings/);
-  await command("/run-stats", /暂无运行统计/);
+  await command("/stats", /暂无运行统计/);
   child.stdin.end("/quit\r");
   const result = await Promise.race([exit, new Promise((_, reject) => {
     const timer = setTimeout(() => reject(new Error("终端退出超时")), 8000); timer.unref();

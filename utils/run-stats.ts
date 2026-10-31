@@ -81,7 +81,7 @@ export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => Ru
     latest = tracker.snapshot(Date.now(), usageOf(ctx.sessionManager.getEntries()), event.aborted) ?? latest;
     tracker = new RunTracker(); context = undefined; stopTimer(); redraw();
   });
-  pi.registerCommand("run-stats", { description: "查看当前或最近一次运行的耗时、工具次数和 token 用量", handler: async (_args, ctx) => {
+  pi.registerCommand("stats", { description: "查看当前或最近一次运行的耗时、工具次数和 token 用量", handler: async (_args, ctx) => {
     if (!ctx.hasUI) return;
     const run = current();
     ctx.ui.notify(run ? `${formatRun(run)}\n输入 ${run.usage.input} · 输出 ${run.usage.output} · 缓存读取 ${run.usage.cacheRead} · 缓存写入 ${run.usage.cacheWrite}` : "暂无运行统计", "info");
