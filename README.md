@@ -1,94 +1,74 @@
 # pi-utils
 
-Personal everyday extensions for [Pi](https://pi.dev) (`@earendil-works/pi-coding-agent`). The package improves the interactive session without registering model providers, reading credentials, or modifying provider requests.
+个人使用的极简 Pi 扩展，只保留四项功能。适用于 Pi 1.4.x，唯一入口是 `utils/index.ts`。
 
-## Install
+## 四项功能
 
-Primary source is GitLab; GitHub is a mirror.
+| 功能 | 内容 |
+| --- | --- |
+| 简洁状态栏 | 固定布局，跟随 Pi 主题；显示模型、思考级别、上下文比例、目录和 Git 分支，保留其它扩展发布的状态 |
+| 订阅额度 | 当前官方 Codex OAuth 或 `zai-coding-cn` Coding Plan 的剩余额度、窗口和重置时间；60 秒刷新 |
+| 轻量运行统计 | 当前或最近一次运行的耗时、工具调用次数、token 用量及结束状态；只留在内存 |
+| `/cd` | 切换 Pi 会话工作目录，保留历史和当前分支；支持路径补全、相对路径、绝对路径和 `~` |
 
-```bash
-pi install git:gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git
+无需独立配置文件、布局预设或特殊字体。没有设置面板，不接管输入框，不增加工具、快捷键、队列、Shell、提醒或 AI 文案。
+
+## 命令
+
+```text
+/model-quota        刷新并查看当前订阅额度
+/run-stats          查看当前或最近一次运行统计
+/cd                显示当前目录
+/cd ../project     切换到指定目录
+/cd "My Folder"    切换到含空格的目录
 ```
 
-Pin a version with a tag ref:
+### 额度含义
 
-```bash
-pi install git:gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git@v2.0.0
-```
+`73%/1w/15h` 表示剩余 73%、周期一周、约 15 小时后重置，不是上下文占用。过期快照显示“待刷新”，不会推算成满额；请求失败明确显示错误。
 
-Development:
+`/model-quota` 显示当前 provider/模型、各窗口名称、当地重置时间、查询时间和官方用量入口。Codex 百分比只代表主额度窗口，不包含模型专属限制、额外积分或其它 ChatGPT 用量；GLM 百分比代表套餐积分窗口，不是剩余 token 或金额。
+
+只使用当前渠道的认证，不向代理地址或重定向地址发送凭据。请求合并去重，网络超时为 10 秒，快照保存在内存并绑定凭据指纹；切换模型、重载或退出时取消旧请求并清除旧状态。只在 TUI 会话查询，不对非交互子代理启动后台查询。
+
+GLM 中国站监控接口不是公开稳定契约，可能随服务端变化。新版官方 OpenAI Responses OAuth 目前只显示订阅标识及用量入口，不借用 Codex 接口或本地 token 推算额度；其他渠道不显示额度。
+
+### 统计口径
+
+从首次 `agent_start` 计时，到 `agent_settled` 结束，期间连续的低层运行不重复计时。工具次数按唯一 `toolCallId` 统计，包含宿主报告的嵌套调用。token 用量取当前运行新增的原生用量，包括输入、输出、缓存读取和缓存写入；不是上下文占用，也不是订阅账单。
+
+不写统计文件、会话统计条目或提醒。重载、切换会话、导航到其他分支后清空；不会恢复或修改旧统计记录。
+
+### 目录切换边界
+
+`/cd` 等待当前运行空闲，在目标目录创建新的 Pi 会话文件，通过 `switchSession()` 切换，再更新进程目录。源会话不被覆盖，完整历史仍保留；若当前选择不是磁盘最后分支，使用一条不进入模型上下文的 `custom` 元数据保留分支选择。
+
+普通新会话尚未落盘时也可切换；显式 `--no-session` 会话不支持 `/cd`，避免擅自启用持久化。切换取消会删除本次创建的目标会话文件；切换抛错时保留可能已经生效的目标文件并由 Pi 报错。
+
+扩展不注入、改写或删减 prompt、历史消息、工具参数和工具结果，也不自动发送消息或调用生成模型。显式 `/cd` 会触发 **Pi 原生**目标目录资源与信任检查；目标目录规则可能因此改变，这是目录切换本身的效果。
+
+## 加载
+
+需要 Node.js 22.19+ 和 Pi 1.4.x。开发环境安装依赖：
 
 ```bash
 npm install --ignore-scripts
+pi --no-extensions -e ./utils/index.ts
+```
+
+其中 `pi` 命令启动单独实例，不是全局安装。持久安装、卸载其它扩展需要另行操作。不要同时加载另一个底栏所有者，例如 `pi-powerline-footer` 或接管 footer 的旧 `model-quota`，也不要重复加载本包的内部模块。
+
+## 开发验证
+
+```bash
 npm run typecheck
 npm test
+npm run test:tui   # macOS，隔离的真实伪终端
+npm pack --dry-run --ignore-scripts
 ```
 
-## Extensions
+测试使用纯函数、临时文件和真实 Pi SDK，不使用模拟宿主。TUI 检查加载、命令、目录切换、磁盘历史保留、重载与退出。所有检查不发送模型提示、不读取个人凭据、不修改个人 Pi 配置。
 
-### statusline
+SDK 人工分发事件只证明处理器行为，不等于真实模型调用、自动重试或在线额度验收。跨平台终端和真实订阅接口需要分别验证。
 
-Owns the interactive footer and keeps frequently used session data together:
-
-- working directory, Git branch, and session name;
-- context usage and auto-compaction state;
-- input/output tokens, cache reads/writes, cache hit rate, and cost;
-- current model and thinking level;
-- the latest duration published by `turn-metrics`;
-- `pi-sinan-usage`, `pi-sinan-fast`, and unrelated extension statuses when available.
-
-Full, compact, and narrow width tiers are automatic; optional `compactAtWidth` (40–300 columns) switches to the compact tier earlier. Configure `piUtils.statusline` in global `~/.pi/agent/settings.json`, optionally overridden field-by-field by a **trusted** workspace `.pi/settings.json`:
-
-```json
-{"piUtils":{"statusline":{"showCost":true,"showDuration":true,"showCache":true,"showQuota":true,"compactAtWidth":100}}}
-```
-
-All four fields default to `true`; invalid values are ignored. `showQuota` controls usage/quota statuses, not the independent Fast-request indicator. Quota is display status only, never read from credentials.
-
-The extension consumes display status from other extensions but does not fetch subscription data or inspect credentials. It is the only extension in this package that calls `setFooter()`.
-
-### tool-activity
-
-Shows ephemeral activity above the editor while Pi is working:
-
-- agent work without an active tool;
-- concurrent tool names and running duration, completed/running counts;
-- agent/provider/tool/user-wait phase (extension prompt kind only; no arguments or prompt contents).
-
-It only observes public lifecycle events. A tool error or nonzero exit alone does not establish an unresolved, urgent problem, and these events do not provide reliable severity or recovery evidence. The widget therefore shows ordinary progress without a problem alert; the original tool result remains available in Pi's tool output for diagnosis. It does not replace tools, modify arguments, or persist tool results.
-
-### session-meta
-
-Uses the active model's normal response to maintain interactive session metadata without an extra model request:
-
-- current terminal title;
-- one automatic session name for an unnamed session;
-- a short factual recap after a final tool-free response.
-
-A small hidden envelope is requested through a structured system-prompt section. The extension removes envelopes from streaming display and finalized assistant messages. Invalid or missing metadata is ignored without affecting the answer. Recaps are stored as display-only custom entries and are not sent back to the model. `/utils-recap` displays up to 30 validated recaps from the current branch. `/utils-recap export recaps.md` explicitly writes only those recaps to a new `.md` file directly in the workspace root; nested paths are rejected to avoid parent-symlink races, and existing files are never overwritten. This command does not export transcript content or call a model.
-
-### turn-metrics
-
-Measures one settled agent run from its first `agent_start` through `agent_settled`, including automatic retries and tool work. It records:
-
-- settled elapsed time, first-token latency (when a text/thinking/tool-call delta is observed), and completion status;
-- tool execution count, bounded per-tool durations, peak concurrency, retry and successful compaction counts;
-- token, cache, and cost deltas.
-
-The result is stored as a display-only custom entry and published to `statusline` through `pi-utils/turn-metrics/updated/v1`. `/utils-stats` reads validated entries from the current branch without model calls or writes.
-
-Optional **Pi in-session** notifications are off by default. Set positive integer millisecond thresholds (1000–86400000) under `piUtils.notifications.settleMs` and/or `piUtils.notifications.userWaitMs` in the same global/trusted-project settings to notify when a run settles or a blocking extension UI is still waiting for input after the threshold. No desktop/OS notifications are used.
-
-## Model selection
-
-Pi 0.84.3 and later keep ordinary `/model`, Ctrl+P, and `/thinking` selections session-local. Use Ctrl+S inside the selector to persist a new default. `pi-utils` therefore does not intercept model selection or edit `defaultProvider` / `defaultModel`.
-
-The former `pin-model` extension was removed in v2 because its behavior is now native to Pi and could undo an explicit Ctrl+S save.
-
-## Scope
-
-`pi-utils` is a personal package, not a harness distribution. It does not manage Pi settings, keybindings, model lists, providers, authentication, skills, or other packages.
-
-## License
-
-MIT
+来源与许可见 [docs/upstream.md](docs/upstream.md)。

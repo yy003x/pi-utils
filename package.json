@@ -1,63 +1,38 @@
 {
   "name": "pi-utils",
-  "version": "2.0.0",
-  "description": "Personal everyday extensions for the Pi coding agent",
-  "keywords": [
-    "pi-package"
-  ],
-  "license": "MIT",
-  "author": "yy003x",
+  "version": "3.0.0",
   "private": true,
-  "repository": {
-    "type": "git",
-    "url": "git+https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils.git"
-  },
-  "bugs": {
-    "url": "https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils/-/issues"
-  },
-  "homepage": "https://gitlab.xiaoluxue.cn/be-arch/pi-lab/pi-utils",
-  "engines": {
-    "node": ">=22.19.0"
-  },
+  "description": "极简 Pi 扩展：状态栏、订阅额度、运行统计和目录切换",
   "type": "module",
-  "files": [
-    "extensions/",
-    "README.md",
-    "LICENSE"
-  ],
+  "keywords": ["pi-package", "pi", "personal", "quota"],
+  "author": "yy003x",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/yy003x/pi-utils.git" },
+  "homepage": "https://github.com/yy003x/pi-utils",
+  "bugs": { "url": "https://github.com/yy003x/pi-utils/issues" },
+  "engines": { "node": ">=22.19.0" },
+  "files": ["cd-command.ts", "utils/**/*.ts", "README.md", "LICENSE", "docs/upstream.md"],
   "scripts": {
-    "test": "node --test",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test tests/**/*.test.ts",
+    "test:tui": "node scripts/tui-smoke.mjs"
   },
-  "pi": {
-    "extensions": [
-      "./extensions/statusline/index.ts",
-      "./extensions/tool-activity/index.ts",
-      "./extensions/session-meta/index.ts",
-      "./extensions/turn-metrics/index.ts"
-    ]
-  },
+  "pi": { "extensions": ["./utils/index.ts"] },
   "peerDependencies": {
-    "@earendil-works/pi-ai": "^0.86.0",
-    "@earendil-works/pi-coding-agent": "^0.86.0",
-    "@earendil-works/pi-tui": "^0.86.0"
+    "@earendil-works/pi-ai": ">=1.4.0 <2",
+    "@earendil-works/pi-coding-agent": ">=1.4.0 <2",
+    "@earendil-works/pi-tui": ">=1.4.0 <2"
   },
   "peerDependenciesMeta": {
-    "@earendil-works/pi-ai": {
-      "optional": true
-    },
-    "@earendil-works/pi-coding-agent": {
-      "optional": true
-    },
-    "@earendil-works/pi-tui": {
-      "optional": true
-    }
+    "@earendil-works/pi-ai": { "optional": true },
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "@earendil-works/pi-tui": { "optional": true }
   },
   "devDependencies": {
-    "@earendil-works/pi-ai": "0.86.0",
-    "@earendil-works/pi-coding-agent": "0.86.0",
-    "@earendil-works/pi-tui": "0.86.0",
-    "@types/node": "24.10.1",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
+    "@types/node": "24.13.3",
     "typescript": "5.9.3"
   }
 }
