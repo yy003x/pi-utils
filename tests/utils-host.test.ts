@@ -43,10 +43,10 @@ async function withHost(factory: (pi: ExtensionAPI) => void, verify: (session: A
   }
 }
 
-test("真实 Pi 加载仅三个命令，无输入、prompt、Provider、工具改写 hook", async () => {
+test("真实 Pi 加载仅两个命令，无输入、prompt、Provider、工具改写 hook", async () => {
   await withHost(extension, async (session, manager) => {
     const runner = session.extensionRunner!;
-    assert.deepEqual(runner.getRegisteredCommands().map(command => command.name).sort(), ["cd", "model-quota", "run-stats"]);
+    assert.deepEqual(runner.getRegisteredCommands().map(command => command.name).sort(), ["cd", "run-stats"]);
     assert.deepEqual(runner.getAllRegisteredTools(), []);
     for (const hook of ["input", "before_agent_start", "context", "context_with_system", "before_provider_request", "before_provider_headers", "tool_call", "tool_result", "user_bash", "agent_before_settle", "resources_discover"]) {
       assert.equal(runner.hasHandlers(hook), false, hook);
@@ -54,7 +54,6 @@ test("真实 Pi 加载仅三个命令，无输入、prompt、Provider、工具�
     const before = structuredClone(manager.getEntries());
     const prompt = session.systemPrompt;
     await session.prompt("/run-stats");
-    await session.prompt("/model-quota");
     await session.prompt("/cd");
     await runner.emit({ type: "agent_start" });
     await runner.emit({ type: "tool_execution_start", toolCallId: "read-1", toolName: "read", args: {} });

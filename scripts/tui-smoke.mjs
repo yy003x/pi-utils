@@ -42,9 +42,9 @@ async function command(input, pattern) {
   await waitFor(pattern, from);
 }
 try {
-  await waitFor(/上下文/);
+  await waitFor(/\(anthropic\) claude-sonnet-4-5 •/);
+  await waitFor(/(?:\d+\.\d%|—)\/\d+k/);
   await command("/run-stats", /暂无运行统计/);
-  await command("/model-quota", /当前模型不属于支持的官方/);
   await command("/cd missing", /Directory does not exist/);
   const sourceBefore = readFileSync(sourceFile, "utf8");
   await command(`/cd ${targetDir}`, /Resumed session/);

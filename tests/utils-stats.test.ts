@@ -16,7 +16,7 @@ test("跨 agent_start 连续计时，工具去重，结束状态与 token 增量
   tracker.message("stop");
   const run = tracker.snapshot(6500, { input: 130, output: 7, cacheRead: 20, cacheWrite: 3 }, false)!;
   assert.deepEqual(run, { durationMs: 6500, toolCalls: 2, status: "completed", usage: { input: 30, output: 7, cacheRead: 20, cacheWrite: 3 } });
-  assert.equal(formatRun(run), "完成 6s · 工具 2 · tokens 60");
+  assert.equal(formatRun(run), "done 6s · tools 2 · tokens 60");
   assert.equal(tracker.snapshot(7000, empty, true)?.status, "aborted");
 });
 test("异常、截断、未终结 toolUse 不伪装为成功", () => {

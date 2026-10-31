@@ -12,6 +12,7 @@ export interface FooterView {
   home: string;
   branch?: string | null;
   contextPercent?: number | null;
+  contextWindow?: number;
   quota?: string;
   run?: RunStats;
   statuses: readonly string[];
@@ -24,11 +25,11 @@ export function singleLine(value: string): string {
 export function footerLines(view: FooterView, width: number): string[] {
   if (width < 1) return [];
   const cwd = view.cwd === view.home ? "~" : view.cwd.startsWith(view.home + sep) ? "~" + view.cwd.slice(view.home.length) : view.cwd;
-  const context = view.contextPercent == null ? "上下文 —" : `上下文 ${view.contextPercent.toFixed(0)}%`;
-  const first = [view.model, view.thinking, context, cwd, view.branch].filter(Boolean).map(value => singleLine(value!)).join(" · ");
-  const second = [view.quota && `额度 ${view.quota}`, view.run && formatRun(view.run), ...view.statuses]
-    .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine).join(" · ");
-  return [first, ...(second ? [second] : [])].map(line => truncateToWidth(line, width));
+  const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}k` : "—"}`;
+  const model = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" • ");
+  const rest = [view.quota, cwd, view.branch, view.run && formatRun(view.run), ...view.statuses]
+    .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine);
+  return [truncateToWidth([model, context, ...rest].join(width < 80 ? " " : "   "), width)];
 }
 export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefined): () => void {
   let redraw = () => {};
@@ -43,10 +44,12 @@ export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefin
         dispose() { unsubscribe(); if (redraw === refresh) redraw = () => {}; },
         render(width) {
           const statuses = data.getExtensionStatuses();
+          const usage = ctx.getContextUsage();
           return footerLines({
-            model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "未选模型",
+            model: ctx.model ? `(${ctx.model.provider}) ${ctx.model.id}` : "no model",
             thinking: pi.getThinkingLevel(), cwd: ctx.cwd, home: homedir(), branch: data.getGitBranch(),
-            contextPercent: ctx.getContextUsage()?.percent, quota: statuses.get(QUOTA_STATUS), run: stats(),
+            contextPercent: usage?.percent, contextWindow: usage?.contextWindow,
+            quota: statuses.get(QUOTA_STATUS), run: stats(),
             statuses: [...statuses].filter(([key]) => key !== QUOTA_STATUS).map(([, value]) => value),
           }, width).map(line => theme.fg("dim", line));
         },

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { REFRESH_MS, STALE_MS, fetchCodexQuota, fetchGlmQuota, formatQuota, quotaDetails, isChatGPTSubscription, isCodexSubscription, isGlmCodingPlan, type QuotaSnapshot } from "./core.ts";
+import { REFRESH_MS, STALE_MS, fetchCodexQuota, fetchGlmQuota, formatQuota, isChatGPTSubscription, isCodexSubscription, isGlmCodingPlan, type QuotaSnapshot } from "./core.ts";
 
 export const QUOTA_STATUS = "model-quota";
 export function registerQuota(pi: ExtensionAPI, redraw: () => void): void {
@@ -25,12 +25,12 @@ export function registerQuota(pi: ExtensionAPI, redraw: () => void): void {
     controller?.abort(); controller = undefined; pending = undefined;
     snapshot = undefined; identity = undefined; error = undefined; attemptedAt = 0;
   };
-  const text = () => error ?? (snapshot ? formatQuota(snapshot, Date.now(), STALE_MS) : "额度读取中");
+  const text = () => error ?? (snapshot ? formatQuota(snapshot, Date.now(), STALE_MS) : "quota loading");
   const render = (ctx: ExtensionContext) => {
     if (ctx.mode !== "tui") return;
     const supported = channel(ctx);
     const native = ctx.model && isChatGPTSubscription(ctx.model, ctx.modelRegistry.isUsingOAuth(ctx.model));
-    ctx.ui.setStatus(QUOTA_STATUS, supported ? text() : native ? "ChatGPT 订阅 · 额度接口未支持" : undefined);
+    ctx.ui.setStatus(QUOTA_STATUS, supported ? text() : native ? "ChatGPT subscription · quota unavailable" : undefined);
     redraw();
   };
   const refresh = (ctx: ExtensionContext, force = false): Promise<void> => {
@@ -48,10 +48,10 @@ export function registerQuota(pi: ExtensionAPI, redraw: () => void): void {
         const auth = await ctx.modelRegistry.getApiKeyAndHeaders(model).catch(() => undefined);
         if (version !== generation || !running || channel(ctx) !== source) return;
         if (!auth?.ok || !auth.apiKey) throw new Error(source === "glm"
-          ? "GLM API Key 不可用，请检查 zai-coding-cn 认证" : "登录凭据不可用，请检查 /login openai-codex");
+          ? "GLM API key unavailable; check zai-coding-cn auth" : "Login unavailable; check /login openai-codex");
         const route = { ...model, baseUrl: auth.baseUrl ?? model.baseUrl };
         if (!(source === "codex" ? isCodexSubscription(route, true) : isGlmCodingPlan(route))) {
-          throw new Error("认证路由不是官方渠道，已停止额度查询");
+          throw new Error("Non-official auth route; quota request blocked");
         }
         const fingerprint = createHash("sha256").update(`${source}\0${auth.apiKey}`).digest("hex");
         if (identity !== fingerprint) {
@@ -69,7 +69,7 @@ export function registerQuota(pi: ExtensionAPI, redraw: () => void): void {
       } catch (cause) {
         if (version !== generation || !running || abort.signal.aborted || channel(ctx) !== source) return;
         snapshot = undefined;
-        error = cause instanceof Error && cause.name === "Error" ? cause.message : "额度查询失败（网络异常或超时）";
+        error = cause instanceof Error && cause.name === "Error" ? cause.message : "Quota request failed (network error or timeout)";
       } finally {
         if (version === generation && running) render(ctx);
       }
@@ -92,23 +92,5 @@ export function registerQuota(pi: ExtensionAPI, redraw: () => void): void {
   pi.on("session_shutdown", (_event, ctx) => {
     running = false; if (timer) clearInterval(timer); timer = undefined; context = undefined; reset();
     if (ctx.mode === "tui") ctx.ui.setStatus(QUOTA_STATUS, undefined);
-  });
-  pi.registerCommand("model-quota", {
-    description: "刷新并查看当前 Codex / GLM 订阅额度与重置时间",
-    handler: async (_args, ctx) => {
-      if (!ctx.hasUI) return;
-      if (ctx.mode !== "tui") { ctx.ui.notify("额度查询仅在交互终端中运行", "info"); return; }
-      const source = channel(ctx);
-      const model = ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "未选模型";
-      if (!source) {
-        const native = ctx.model && isChatGPTSubscription(ctx.model, ctx.modelRegistry.isUsingOAuth(ctx.model));
-        ctx.ui.notify(native ? quotaDetails("chatgpt", model) : "当前模型不属于支持的官方 Codex / GLM 渠道", "info");
-        return;
-      }
-      const version = generation;
-      await refresh(ctx, true);
-      if (version !== generation || !running || channel(ctx) !== source) return;
-      ctx.ui.notify(quotaDetails(source, model, snapshot, error), error ? "warning" : "info");
-    },
   });
 }

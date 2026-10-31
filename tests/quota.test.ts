@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  CHATGPT_USAGE_URL, CODEX_USAGE_URL, GLM_USAGE_URL, STALE_MS, formatQuota, quotaDetails, fetchCodexQuota, fetchGlmQuota,
-  isChatGPTSubscription, isCodexSubscription, isGlmCodingPlan, parseCodexQuota, parseGlmQuota, windowLabel,
+  CODEX_USAGE_URL, GLM_USAGE_URL, STALE_MS, formatQuota, fetchCodexQuota, fetchGlmQuota,
+  isChatGPTSubscription, isCodexSubscription, isGlmCodingPlan, parseCodexQuota, parseGlmQuota,
 } from '../utils/quota/core.ts';
 
 const official = {
@@ -39,7 +39,6 @@ test('同名代理、不同路径与非法地址不冒充官方订阅渠道', ()
 });
 
 test('用量入口与查询地址固定为官方 HTTPS 地址', () => {
-  assert.equal(CHATGPT_USAGE_URL, 'https://chatgpt.com/settings/usage');
   assert.equal(CODEX_USAGE_URL, 'https://chatgpt.com/backend-api/wham/usage');
   assert.equal(GLM_USAGE_URL, 'https://open.bigmodel.cn/api/monitor/usage/quota/limit');
 });
@@ -98,9 +97,9 @@ test('缺失、非数字与畸形字段不得伪造为 100% 剩余', () => {
 
 test('到达重置时间或快照过期后不推算额度恢复', () => {
   const snapshot = parseCodexQuota(payload(window(27)), now);
-  assert.equal(formatQuota(snapshot, now + STALE_MS), '待刷新/1w/1h');
+  assert.equal(formatQuota(snapshot, now + STALE_MS), 'stale/1w/1h');
   const atReset = { ...snapshot, fetchedAt: now + 600_000 };
-  assert.equal(formatQuota(atReset, now + 600_000), '待刷新/1w/0h');
+  assert.equal(formatQuota(atReset, now + 600_000), 'stale/1w/0h');
 });
 
 test('紧凑格式显示周期和距重置小时数，不把不足一小时显示为零', () => {
@@ -167,53 +166,17 @@ test('GLM 快照过期后不推算恢复，且不保存套餐与账户信息', (
     code: 200, msg: '操作成功',
     data: { level: 'max', limits: [glmLimit({}), weekly] },
   }, now);
-  assert.equal(formatQuota(snapshot, now + STALE_MS), '待刷新/5h/3h · 待刷新/7d/166h');
+  assert.equal(formatQuota(snapshot, now + STALE_MS), 'stale/5h/3h · stale/7d/166h');
   assert.equal(JSON.stringify(snapshot).includes('max'), false);
-});
-
-test('Codex 详情保留当前模型、窗口名称、当地重置时间、查询时间和额度范围', () => {
-  const snapshot = parseCodexQuota(payload(window(27, 18000), window(50)), now);
-  const text = quotaDetails('codex', 'openai-codex/current-model', snapshot, undefined, now);
-  assert.match(text, /openai-codex\/current-model：ChatGPT 订阅/);
-  assert.ok(text.includes('73%/5h/1h · 50%/1w/1h'));
-  assert.ok(text.includes(`5小时窗口重置：${new Date(snapshot.windows[0].resetAt).toLocaleString('zh-CN')}`));
-  assert.match(text, /7天窗口重置/);
-  assert.ok(text.includes(`查询时间：${new Date(now).toLocaleString('zh-CN')}`));
-  assert.match(text, /模型专属限制、额外积分及其他 ChatGPT 用量不在此百分比内/);
-  assert.ok(text.includes(CHATGPT_USAGE_URL));
-});
-
-test('GLM 详情显示实际窗口和积分口径，不凭空补出第二个窗口', () => {
-  const snapshot = parseGlmQuota({ data: { limits: [glmLimit({})] } }, now);
-  const text = quotaDetails('glm', 'zai-coding-cn/current-model', snapshot, undefined, now);
-  assert.match(text, /GLM Coding Plan/);
-  assert.match(text, /5h窗口重置/);
-  assert.doesNotMatch(text, /7d窗口重置/);
-  assert.match(text, /套餐积分窗口/);
-  assert.match(text, /https:\/\/open.bigmodel.cn/);
-  assert.ok(!text.includes(CHATGPT_USAGE_URL));
-});
-
-test('失败详情和新版 OAuth 明确能力边界，不推算余额或显示过时重置时间', () => {
-  const failed = quotaDetails('codex', 'openai-codex/current-model', undefined, '额度查询失败（HTTP 401）', now);
-  assert.match(failed, /HTTP 401/);
-  assert.doesNotMatch(failed, /窗口重置|查询时间|100%/);
-  const native = quotaDetails('chatgpt', 'openai/current-model');
-  assert.match(native, /暂不支持数值查询/);
-  assert.match(native, /不借用 Codex 接口或本地 Token 数推算/);
-  assert.ok(native.includes(CHATGPT_USAGE_URL));
 });
 
 test('无效或空认证在请求前失败，不调用远端额度接口', async () => {
   const signal = new AbortController().signal;
-  await assert.rejects(fetchCodexQuota('invalid', signal), /登录凭据格式无效/);
-  await assert.rejects(fetchGlmQuota('', signal), /凭据不可用/);
+  await assert.rejects(fetchCodexQuota('invalid', signal), /Invalid Codex login credentials/);
+  await assert.rejects(fetchGlmQuota('', signal), /credentials unavailable/);
 });
 
-test('窗口名称来自秒数，解析结果不保存服务端个人信息和凭据', () => {
-  assert.equal(windowLabel(18000), '5小时');
-  assert.equal(windowLabel(604800), '7天');
-  assert.equal(windowLabel(90), '2分钟');
+test('解析结果不保存服务端个人信息和凭据', () => {
   const snapshot = parseCodexQuota({ ...payload(window(27)), email: 'private', account_id: 'private' }, now);
   assert.deepEqual(Object.keys(snapshot), ['windows', 'fetchedAt']);
   assert.equal(JSON.stringify(snapshot).includes('private'), false);

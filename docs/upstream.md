@@ -4,7 +4,7 @@
 
 - `cd-command.ts` 的路径解析、补全和会话切换基础源自 [nicobailon/pi-powerline-footer](https://github.com/nicobailon/pi-powerline-footer) `0.22.0`，提交 `eeacaa2ca5097328c548d85f8173f033f6752d81`。
 - 当前只保留上述目录切换模块，不包含 Powerline 的界面、编辑器、队列、Shell、文案或配置系统。路径补全、新会话创建和当前分支保留功能按现行 Pi API 维护。
-- `utils/quota/` 集成自个人 `model-quota` 模块，包含 Codex / GLM 额度读取、官方路由校验、窗口解析、快照过期、凭据隔离、请求取消及 `/model-quota` 详情。原有 16 项解析测试保留在 `tests/quota.test.ts`，并增加详情和无效认证回归。
+- `utils/quota/` 集成自个人 `model-quota` 模块，包含 Codex / GLM 额度读取、官方路由校验、窗口解析、快照过期、凭据隔离、请求取消及状态栏额度显示。解析测试保留在 `tests/quota.test.ts`，并覆盖无效认证。
 - 根目录 `LICENSE` 保留 Nico Bailon、上游贡献者和本项目作者的 MIT 署名。
 
 ## 职责

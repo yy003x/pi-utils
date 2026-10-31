@@ -1,4 +1,3 @@
-export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage';
 export const CODEX_USAGE_URL = 'https://chatgpt.com/backend-api/wham/usage';
 export const GLM_USAGE_URL = 'https://open.bigmodel.cn/api/monitor/usage/quota/limit';
 export const REFRESH_MS = 60_000;
@@ -76,7 +75,7 @@ export function parseCodexQuota(value: unknown, now = Date.now()): QuotaSnapshot
     const used = window.used_percent;
     if (typeof used !== 'number' || !Number.isFinite(used) || used < 0
       || !positive(window.limit_window_seconds) || !positive(window.reset_at)) {
-      throw new Error('额度窗口格式无效');
+      throw new Error('Invalid quota window');
     }
     windows.push({
       seconds: window.limit_window_seconds,
@@ -84,14 +83,8 @@ export function parseCodexQuota(value: unknown, now = Date.now()): QuotaSnapshot
       resetAt: window.reset_at * 1000,
     });
   }
-  if (windows.length === 0) throw new Error('服务端未返回可显示的 Codex 额度窗口');
+  if (windows.length === 0) throw new Error('No displayable Codex quota window');
   return { windows, fetchedAt: now };
-}
-
-export function windowLabel(seconds: number): string {
-  if (seconds % 86400 === 0) return `${seconds / 86400}天`;
-  if (seconds % 3600 === 0) return `${seconds / 3600}小时`;
-  return `${Math.ceil(seconds / 60)}分钟`;
 }
 
 function periodLabel(seconds: number): string {
@@ -105,42 +98,19 @@ export function formatQuota(snapshot: QuotaSnapshot, now = Date.now(), staleMs =
   return snapshot.windows.map(window => {
     // 窗口到期不代表已经恢复满额，必须等待服务端的新快照。
     const remaining = now >= window.resetAt || now - snapshot.fetchedAt >= staleMs
-      ? '待刷新' : `${Number(window.remaining.toFixed(1))}%`;
+      ? 'stale' : `${Number(window.remaining.toFixed(1))}%`;
     const hours = Math.max(0, Math.ceil((window.resetAt - now) / 3_600_000));
     return `${remaining}/${window.label ?? periodLabel(window.seconds)}/${hours}h`;
   }).join(' · ');
 }
 
-export function quotaDetails(
-  source: 'codex' | 'glm' | 'chatgpt', model: string,
-  snapshot?: QuotaSnapshot, error?: string, now = Date.now(),
-): string {
-  const lines = [`${model}：${source === 'glm' ? 'GLM Coding Plan' : 'ChatGPT 订阅'}`];
-  if (source === 'chatgpt') {
-    lines.push('当前订阅通道暂不支持数值查询；不借用 Codex 接口或本地 Token 数推算。');
-  } else if (snapshot) {
-    lines.push(formatQuota(snapshot, now));
-    for (const window of snapshot.windows) {
-      lines.push(`${window.label ?? windowLabel(window.seconds)}窗口重置：${new Date(window.resetAt).toLocaleString('zh-CN')}`);
-    }
-    lines.push(`查询时间：${new Date(snapshot.fetchedAt).toLocaleString('zh-CN')}`);
-    lines.push(source === 'glm'
-      ? '以上是 GLM Coding Plan 的套餐积分窗口；非高峰半价积分等细节以智谱官方说明为准。'
-      : '以上是 Codex 主额度窗口；模型专属限制、额外积分及其他 ChatGPT 用量不在此百分比内。');
-  } else {
-    lines.push(error ?? '服务端未返回可显示额度');
-  }
-  lines.push(source === 'glm' ? '用量统计：https://open.bigmodel.cn' : `管理用量：${CHATGPT_USAGE_URL}`);
-  return lines.join('\n');
-}
-
 async function readQuotaResponse(response: Response): Promise<unknown> {
   // 不输出响应正文，避免认证失败页或服务端错误携带个人信息。
-  if (!response.ok) throw new Error(`额度查询失败（HTTP ${response.status}）`);
+  if (!response.ok) throw new Error(`Quota request failed (HTTP ${response.status})`);
   try {
     return await response.json();
   } catch {
-    throw new Error('额度响应不是有效 JSON');
+    throw new Error('Invalid quota response JSON');
   }
 }
 
@@ -150,9 +120,9 @@ export async function fetchCodexQuota(apiKey: string, signal: AbortSignal): Prom
     const claims = JSON.parse(Buffer.from(apiKey.split('.')[1] ?? '', 'base64url').toString());
     accountId = claims['https://api.openai.com/auth']?.chatgpt_account_id;
   } catch {
-    throw new Error('Codex 登录凭据格式无效，请重新登录');
+    throw new Error('Invalid Codex login credentials; log in again');
   }
-  if (typeof accountId !== 'string' || !accountId) throw new Error('Codex 登录凭据缺少账户信息');
+  if (typeof accountId !== 'string' || !accountId) throw new Error('Codex login credentials lack account information');
   const response = await fetch(CODEX_USAGE_URL, {
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -182,7 +152,7 @@ export function parseGlmQuota(value: unknown, now = Date.now()): QuotaSnapshot {
     if (!positive(usage) || typeof remainingValue !== 'number' || !Number.isFinite(remainingValue)
       || remainingValue < 0 || remainingValue > usage
       || !positive(limit.nextResetTime) || !unitSeconds || !positive(number)) {
-      throw new Error('额度窗口格式无效');
+      throw new Error('Invalid quota window');
     }
     const seconds = number * unitSeconds;
     windows.push({
@@ -193,13 +163,13 @@ export function parseGlmQuota(value: unknown, now = Date.now()): QuotaSnapshot {
       ...(seconds === 604800 ? { label: '7d' } : {}),
     });
   }
-  if (windows.length === 0) throw new Error('服务端未返回可识别的 GLM 额度窗口');
+  if (windows.length === 0) throw new Error('No recognizable GLM quota window');
   windows.sort((a, b) => a.resetAt - b.resetAt);
   return { windows, fetchedAt: now };
 }
 
 export async function fetchGlmQuota(apiKey: string, signal: AbortSignal): Promise<QuotaSnapshot> {
-  if (!apiKey) throw new Error('GLM Coding Plan 凭据不可用');
+  if (!apiKey) throw new Error('GLM Coding Plan credentials unavailable');
   // 该监控接口使用原始 API Key 作为 Authorization 值，与官方 glm-plan-usage 插件一致。
   const response = await fetch(GLM_USAGE_URL, {
     headers: { Authorization: apiKey, Accept: 'application/json' },

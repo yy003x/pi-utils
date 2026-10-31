@@ -49,11 +49,11 @@ export class RunTracker {
   }
 }
 const labels: Record<RunStats["status"], string> = {
-  running: "运行中", completed: "完成", error: "失败", aborted: "已中止", length: "长度受限", unknown: "已结束",
+  running: "running", completed: "done", error: "error", aborted: "aborted", length: "length", unknown: "ended",
 };
 export function formatRun(run: RunStats): string {
   const tokens = run.usage.input + run.usage.output + run.usage.cacheRead + run.usage.cacheWrite;
-  return `${labels[run.status]} ${duration(run.durationMs)} · 工具 ${run.toolCalls} · tokens ${tokens}`;
+  return `${labels[run.status]} ${duration(run.durationMs)} · tools ${run.toolCalls} · tokens ${tokens}`;
 }
 export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => RunStats | undefined {
   let tracker = new RunTracker();
