@@ -51,9 +51,16 @@ export class RunTracker {
 const labels: Record<RunStats["status"], string> = {
   running: "running", completed: "done", error: "error", aborted: "aborted", length: "length", unknown: "ended",
 };
+export function formatTokens(count: number): string {
+  if (count < 1000) return String(count);
+  if (count < 10_000) return `${(count / 1000).toFixed(1)}k`;
+  if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
+  if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}m`;
+  return `${Math.round(count / 1_000_000)}m`;
+}
 export function formatRun(run: RunStats): string {
   const tokens = run.usage.input + run.usage.output + run.usage.cacheRead + run.usage.cacheWrite;
-  return `${labels[run.status]} ${duration(run.durationMs)} · tools ${run.toolCalls} · tokens ${tokens}`;
+  return `${labels[run.status]} ${duration(run.durationMs)} tools:${run.toolCalls} tokens:${formatTokens(tokens)}`;
 }
 export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => RunStats | undefined {
   let tracker = new RunTracker();

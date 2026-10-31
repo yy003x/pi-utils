@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { sep } from "node:path";
+import { basename, resolve } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { QUOTA_STATUS } from "./quota/index.ts";
@@ -15,7 +15,7 @@ export interface FooterView {
   contextWindow?: number;
   quota?: string;
   run?: RunStats;
-  statuses: readonly string[];
+  statuses: readonly (readonly [string, string])[];
 }
 export function singleLine(value: string): string {
   return value.replace(/\u001b\][^\u0007]*?(?:\u0007|\u001b\\)/g, "")
@@ -24,15 +24,30 @@ export function singleLine(value: string): string {
 }
 export function footerLines(view: FooterView, width: number): string[] {
   if (width < 1) return [];
-  const cwd = view.cwd === view.home ? "~" : view.cwd.startsWith(view.home + sep) ? "~" + view.cwd.slice(view.home.length) : view.cwd;
+  const directory = resolve(view.cwd);
+  const cwd = directory === resolve(view.home) ? "~" : basename(directory) || directory;
   const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}k` : "—"}`;
+  const primaryStatuses: string[] = [];
+  const secondaryStatuses: string[] = [];
+  for (const [key, value] of view.statuses) {
+    if (key === QUOTA_STATUS) continue;
+    const text = singleLine(value);
+    if (!text) continue;
+    const secondary = key === "hermes" || key === "subagents"
+      || key.startsWith("subagent-") || key.startsWith("subagents-");
+    (secondary ? secondaryStatuses : primaryStatuses).push(text);
+  }
   const right = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" • ");
-  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run), ...view.statuses]
+  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run), ...primaryStatuses]
     .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine).join(" ");
   const availableLeft = width - visibleWidth(right) - 2;
-  if (availableLeft < 1) return [truncateToWidth(right, width, "...")];
-  const compactLeft = truncateToWidth(left, availableLeft, "...");
-  return [compactLeft + " ".repeat(width - visibleWidth(compactLeft) - visibleWidth(right)) + right];
+  let first: string;
+  if (availableLeft < 1) first = truncateToWidth(right, width, "...");
+  else {
+    const compactLeft = truncateToWidth(left, availableLeft, "...");
+    first = compactLeft + " ".repeat(width - visibleWidth(compactLeft) - visibleWidth(right)) + right;
+  }
+  return secondaryStatuses.length ? [first, truncateToWidth(secondaryStatuses.join(" "), width, "...")] : [first];
 }
 export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefined): () => void {
   let redraw = () => {};
@@ -53,7 +68,7 @@ export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefin
             thinking: pi.getThinkingLevel(), cwd: ctx.cwd, home: homedir(), branch: data.getGitBranch(),
             contextPercent: usage?.percent, contextWindow: usage?.contextWindow,
             quota: statuses.get(QUOTA_STATUS), run: stats(),
-            statuses: [...statuses].filter(([key]) => key !== QUOTA_STATUS).map(([, value]) => value),
+            statuses: [...statuses],
           }, width).map(line => theme.fg("dim", line));
         },
       };
