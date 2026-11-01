@@ -8,27 +8,30 @@ test("跨 agent_start 连续计时，工具去重，结束状态与 token 增量
   const tracker = new RunTracker();
   assert.equal(tracker.snapshot(0, empty), undefined);
   tracker.tool("before-start");
+  tracker.turn();
   tracker.start(0, { ...empty, input: 100 });
+  tracker.turn();
   tracker.start(5000, { ...empty, input: 150 });
+  tracker.turn();
   tracker.tool("read-1"); tracker.tool("read-1"); tracker.tool("read-1/1");
   tracker.message("error");
   assert.equal(tracker.snapshot(6000, empty)?.status, "running");
   tracker.message("stop");
   const run = tracker.snapshot(6500, { input: 130, output: 7, cacheRead: 20, cacheWrite: 3 }, false)!;
-  assert.deepEqual(run, { durationMs: 6500, toolCalls: 2, status: "completed", usage: { input: 30, output: 7, cacheRead: 20, cacheWrite: 3 } });
-  assert.equal(formatRun(run), "done 6s tools:2 tokens:60");
+  assert.deepEqual(run, { durationMs: 6500, toolCalls: 2, turns: 2, status: "completed", usage: { input: 30, output: 7, cacheRead: 20, cacheWrite: 3 } });
+  assert.equal(formatRun(run), "tools:2 token:60 turn:2 done:6s");
   assert.equal(tracker.snapshot(7000, empty, true)?.status, "aborted");
 });
-test("token 沿用原生数量级压缩格式，单位使用小写 k/m", () => {
+test("token 沿用原生数量级压缩格式，单位使用 K/M", () => {
   for (const [count, expected] of [
-    [0, "0"], [999, "999"], [1000, "1.0k"], [1250, "1.3k"],
-    [9999, "10.0k"], [10_000, "10k"], [125_600, "126k"],
-    [999_999, "1000k"], [1_000_000, "1.0m"], [1_250_000, "1.3m"],
-    [10_000_000, "10m"], [125_600_000, "126m"],
+    [0, "0"], [999, "999"], [1000, "1.0K"], [1250, "1.3K"],
+    [9999, "10.0K"], [10_000, "10K"], [125_600, "126K"],
+    [999_999, "1000K"], [1_000_000, "1.0M"], [1_250_000, "1.3M"],
+    [10_000_000, "10M"], [125_600_000, "126M"],
   ] as const) assert.equal(formatTokens(count), expected);
-  const run = { durationMs: 32_000, toolCalls: 8, status: "completed" as const,
+  const run = { durationMs: 32_000, toolCalls: 8, turns: 4, status: "completed" as const,
     usage: { input: 100_000, output: 5600, cacheRead: 15_000, cacheWrite: 5000 } };
-  assert.equal(formatRun(run), "done 32s tools:8 tokens:126k");
+  assert.equal(formatRun(run), "tools:8 token:126K turn:4 done:32s");
   assert.equal(run.usage.input, 100_000);
 });
 test("异常、截断、未终结 toolUse 不伪装为成功", () => {
@@ -36,7 +39,9 @@ test("异常、截断、未终结 toolUse 不伪装为成功", () => {
   tracker.start(1000, empty);
   for (const [reason, status] of [["error", "error"], ["length", "length"], ["aborted", "aborted"], ["toolUse", "unknown"]]) {
     tracker.message(reason);
-    assert.equal(tracker.snapshot(2000, empty, false)?.status, status);
+    const run = tracker.snapshot(2000, empty, false)!;
+    assert.equal(run.status, status);
+    assert.equal(formatRun(run), `tools:0 token:0 turn:0 ${status === "unknown" ? "ended" : status}:1s`);
   }
   assert.equal(duration(-1), "0s");
   assert.equal(duration(61_000), "1m1s");

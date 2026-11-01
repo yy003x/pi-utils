@@ -4,6 +4,7 @@ export interface TokenUsage { input: number; output: number; cacheRead: number; 
 export interface RunStats {
   durationMs: number;
   toolCalls: number;
+  turns: number;
   status: "running" | "completed" | "error" | "aborted" | "length" | "unknown";
   usage: TokenUsage;
 }
@@ -27,6 +28,7 @@ export class RunTracker {
   private startedAt: number | undefined;
   private before: TokenUsage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
   private tools = new Set<string>();
+  private turns = 0;
   private status: RunStats["status"] = "unknown";
   start(now: number, usage: TokenUsage): void {
     // 自动重试可多次触发 agent_start；只在整个运行首次开始时计时。
@@ -35,6 +37,7 @@ export class RunTracker {
     this.before = { ...usage };
   }
   tool(id: string): void { if (this.startedAt !== undefined) this.tools.add(id); }
+  turn(): void { if (this.startedAt !== undefined) this.turns++; }
   message(reason: string): void {
     if (this.startedAt === undefined) return;
     this.status = reason === "stop" ? "completed"
@@ -44,7 +47,7 @@ export class RunTracker {
     if (this.startedAt === undefined) return undefined;
     const usage = { ...after };
     for (const key of Object.keys(usage) as (keyof TokenUsage)[]) usage[key] = Math.max(0, after[key] - this.before[key]);
-    return { durationMs: Math.max(0, now - this.startedAt), toolCalls: this.tools.size,
+    return { durationMs: Math.max(0, now - this.startedAt), toolCalls: this.tools.size, turns: this.turns,
       status: aborted === undefined ? "running" : aborted ? "aborted" : this.status, usage };
   }
 }
@@ -53,14 +56,14 @@ const labels: Record<RunStats["status"], string> = {
 };
 export function formatTokens(count: number): string {
   if (count < 1000) return String(count);
-  if (count < 10_000) return `${(count / 1000).toFixed(1)}k`;
-  if (count < 1_000_000) return `${Math.round(count / 1000)}k`;
-  if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}m`;
-  return `${Math.round(count / 1_000_000)}m`;
+  if (count < 10_000) return `${(count / 1000).toFixed(1)}K`;
+  if (count < 1_000_000) return `${Math.round(count / 1000)}K`;
+  if (count < 10_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  return `${Math.round(count / 1_000_000)}M`;
 }
 export function formatRun(run: RunStats): string {
   const tokens = run.usage.input + run.usage.output + run.usage.cacheRead + run.usage.cacheWrite;
-  return `${labels[run.status]} ${duration(run.durationMs)} tools:${run.toolCalls} tokens:${formatTokens(tokens)}`;
+  return `tools:${run.toolCalls} token:${formatTokens(tokens)} turn:${run.turns} ${labels[run.status]}:${duration(run.durationMs)}`;
 }
 export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => RunStats | undefined {
   let tracker = new RunTracker();
@@ -80,6 +83,7 @@ export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => Ru
     if (ctx.mode === "tui" && !timer) { timer = setInterval(redraw, 1000); timer.unref(); }
     redraw();
   });
+  pi.on("turn_start", () => { tracker.turn(); redraw(); });
   pi.on("tool_execution_start", event => { tracker.tool(event.toolCallId); redraw(); });
   pi.on("message_end", event => {
     if (event.message.role === "assistant") tracker.message(event.message.stopReason);
@@ -88,7 +92,7 @@ export function registerRunStats(pi: ExtensionAPI, redraw: () => void): () => Ru
     latest = tracker.snapshot(Date.now(), usageOf(ctx.sessionManager.getEntries()), event.aborted) ?? latest;
     tracker = new RunTracker(); context = undefined; stopTimer(); redraw();
   });
-  pi.registerCommand("stats", { description: "查看当前或最近一次运行的耗时、工具次数和 token 用量", handler: async (_args, ctx) => {
+  pi.registerCommand("stats", { description: "查看当前或最近一次运行的耗时、工具次数、轮次和 token 用量", handler: async (_args, ctx) => {
     if (!ctx.hasUI) return;
     const run = current();
     ctx.ui.notify(run ? `${formatRun(run)}\n输入 ${run.usage.input} · 输出 ${run.usage.output} · 缓存读取 ${run.usage.cacheRead} · 缓存写入 ${run.usage.cacheWrite}` : "暂无运行统计", "info");

@@ -72,10 +72,16 @@ test("真实 SDK 分发验证统计跨 agent_end 保持，到 settled 才结束�
     const runner = session.extensionRunner!;
     assert.equal(stats(), undefined);
     await runner.emit({ type: "agent_start" });
+    assert.equal(stats()?.turns, 0);
+    await runner.emit({ type: "turn_start", turnIndex: 0, timestamp: 1 });
     await runner.emit({ type: "tool_execution_start", toolCallId: "read-1", toolName: "read", args: {} });
+    await runner.emit({ type: "turn_start", turnIndex: 1, timestamp: 2 });
     await runner.emit({ type: "agent_end", messages: [] });
     assert.equal(stats()?.status, "running");
+    assert.equal(stats()?.turns, 2);
     await runner.emit({ type: "agent_start" });
+    await runner.emit({ type: "turn_start", turnIndex: 0, timestamp: 3 });
+    assert.equal(stats()?.turns, 3);
     const message: AssistantMessage = { role: "assistant", content: [{ type: "text", text: "测试条目，并非模型调用结果" }],
       api: "openai-completions", provider: "test", model: "test", stopReason: "stop", timestamp: 1,
       usage: { input: 2, output: 3, cacheRead: 5, cacheWrite: 7, totalTokens: 17,
@@ -88,13 +94,18 @@ test("真实 SDK 分发验证统计跨 agent_end 保持，到 settled 才结束�
     await runner.emit({ type: "agent_settled", aborted: false });
     assert.equal(stats()?.status, "completed");
     assert.equal(stats()?.toolCalls, 1);
+    assert.equal(stats()?.turns, 3);
     assert.deepEqual(stats()?.usage, { input: 2, output: 3, cacheRead: 5, cacheWrite: 7 });
     await runner.emit({ type: "agent_settled", aborted: false });
     assert.equal(stats()?.toolCalls, 1);
+    assert.equal(stats()?.turns, 3);
     assert.deepEqual(manager.getEntries(), before);
     await runner.emit({ type: "agent_start" });
+    assert.equal(stats()?.turns, 0);
+    await runner.emit({ type: "turn_start", turnIndex: 0, timestamp: 4 });
     await runner.emit({ type: "agent_settled", aborted: true });
     assert.equal(stats()?.status, "aborted");
+    assert.equal(stats()?.turns, 1);
     assert.deepEqual(stats()?.usage, { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
     await runner.emit({ type: "session_start", reason: "reload" });
     assert.equal(stats(), undefined);

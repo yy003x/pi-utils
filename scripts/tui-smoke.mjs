@@ -42,8 +42,8 @@ async function command(input, pattern) {
   await waitFor(pattern, from);
 }
 try {
-  await waitFor(/\(anthropic\) claude-sonnet-4-5 •/);
-  await waitFor(/(?:\d+\.\d%|—)\/\d+k/);
+  await waitFor(/anthropic\/claude-sonnet-4-5/);
+  await waitFor(/(?:\d+\.\d%|—)\/\d+K/);
   await command("/stats", /暂无运行统计/);
   await command("/cd missing", /Directory does not exist/);
   const sourceBefore = readFileSync(sourceFile, "utf8");

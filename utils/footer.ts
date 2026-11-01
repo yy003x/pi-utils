@@ -26,19 +26,13 @@ export function footerLines(view: FooterView, width: number): string[] {
   if (width < 1) return [];
   const directory = resolve(view.cwd);
   const cwd = directory === resolve(view.home) ? "~" : basename(directory) || directory;
-  const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}k` : "—"}`;
-  const primaryStatuses: string[] = [];
-  const secondaryStatuses: string[] = [];
-  for (const [key, value] of view.statuses) {
-    if (key === QUOTA_STATUS) continue;
-    const text = singleLine(value);
-    if (!text) continue;
-    const secondary = key === "hermes" || key === "subagents"
-      || key.startsWith("subagent-") || key.startsWith("subagents-");
-    (secondary ? secondaryStatuses : primaryStatuses).push(text);
-  }
-  const right = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" • ");
-  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run), ...primaryStatuses]
+  const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}K` : "—"}`;
+  const secondaryStatuses = [...view.statuses]
+    .filter(([key]) => key !== QUOTA_STATUS)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, value]) => singleLine(value)).filter(Boolean);
+  const right = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" ");
+  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run)]
     .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine).join(" ");
   const availableLeft = width - visibleWidth(right) - 2;
   let first: string;
@@ -64,7 +58,7 @@ export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefin
           const statuses = data.getExtensionStatuses();
           const usage = ctx.getContextUsage();
           return footerLines({
-            model: ctx.model ? `(${ctx.model.provider}) ${ctx.model.id}` : "no model",
+            model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : "no model",
             thinking: pi.getThinkingLevel(), cwd: ctx.cwd, home: homedir(), branch: data.getGitBranch(),
             contextPercent: usage?.percent, contextWindow: usage?.contextWindow,
             quota: statuses.get(QUOTA_STATUS), run: stats(),
