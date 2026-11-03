@@ -43,11 +43,13 @@ async function command(input, pattern) {
 }
 try {
   await waitFor(/anthropic\/claude-sonnet-4-5/);
+  await waitFor(/~\/source/);
   await waitFor(/(?:\d+\.\d%|—)\/\d+K/);
   await command("/stats", /暂无运行统计/);
   await command("/cd missing", /Directory does not exist/);
   const sourceBefore = readFileSync(sourceFile, "utf8");
   await command(`/cd ${targetDir}`, /Resumed session/);
+  await waitFor(/~\/target/);
   await command("/cd", /\/target/);
   await command("/stats", /暂无运行统计/);
   await command("/reload", /Reloaded keybindings/);

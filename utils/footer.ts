@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
-import { basename, resolve } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { isAbsolute, relative, resolve, sep } from "node:path";
+import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { QUOTA_STATUS } from "./quota/index.ts";
 import { formatRun, type RunStats } from "./run-stats.ts";
@@ -22,26 +22,40 @@ export function singleLine(value: string): string {
     .replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, "")
     .replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g, " ").trim();
 }
-export function footerLines(view: FooterView, width: number): string[] {
+export function footerLines(view: FooterView, width: number, theme?: Pick<Theme, "fg">): string[] {
   if (width < 1) return [];
-  const directory = resolve(view.cwd);
-  const cwd = directory === resolve(view.home) ? "~" : basename(directory) || directory;
+  const paint = (color: "dim" | "warning" | "error", text: string) => theme ? theme.fg(color, text) : text;
+  // 沿用原生 Pi 的阈值，按显示舍入前的占用率判断。
+  const percent = view.contextPercent ?? 0;
+  const contextColor = percent > 90 ? "error" : percent > 70 ? "warning" : "dim";
+  // 沿用原生 Pi 的规则：仅缩写主目录及其子目录。
+  const homeRelative = view.home ? relative(resolve(view.home), resolve(view.cwd)) : undefined;
+  const insideHome = homeRelative !== undefined && homeRelative !== ".."
+    && !homeRelative.startsWith(`..${sep}`) && !isAbsolute(homeRelative);
+  const cwd = insideHome ? (homeRelative ? `~${sep}${homeRelative}` : "~") : view.cwd;
+  const location = singleLine(cwd) + (view.branch ? ` (${singleLine(view.branch)})` : "");
+  const locationLine = paint("dim", truncateToWidth(location, width, "..."));
   const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}K` : "—"}`;
-  const secondaryStatuses = [...view.statuses]
+  const extensionStatuses = [...view.statuses]
     .filter(([key]) => key !== QUOTA_STATUS)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, value]) => singleLine(value)).filter(Boolean);
-  const right = [view.model, view.thinking].filter(Boolean).map(singleLine).join(" ");
-  const left = [cwd, view.branch, context, view.quota, view.run && formatRun(view.run)]
-    .filter((value): value is string => typeof value === "string" && value.length > 0).map(singleLine).join(" ");
+  const right = paint("dim", [view.model, view.thinking].filter(Boolean).map(singleLine).join(" "));
+  // 先清理外部文本，再添加主题转义序列；各字段独立着色。
+  const left = [context, view.quota, view.run && formatRun(view.run)]
+    .map((value, index) => typeof value === "string" && value.length > 0
+      ? paint(index === 0 ? contextColor : "dim", singleLine(value)) : "")
+    .filter(Boolean).join(" ");
   const availableLeft = width - visibleWidth(right) - 2;
-  let first: string;
-  if (availableLeft < 1) first = truncateToWidth(right, width, "...");
+  let statsLine: string;
+  if (availableLeft < 1) statsLine = truncateToWidth(right, width, "...");
   else {
     const compactLeft = truncateToWidth(left, availableLeft, "...");
-    first = compactLeft + " ".repeat(width - visibleWidth(compactLeft) - visibleWidth(right)) + right;
+    statsLine = compactLeft + " ".repeat(width - visibleWidth(compactLeft) - visibleWidth(right)) + right;
   }
-  return secondaryStatuses.length ? [first, truncateToWidth(secondaryStatuses.join(" "), width, "...")] : [first];
+  const lines = [locationLine, statsLine];
+  if (extensionStatuses.length) lines.push(paint("dim", truncateToWidth(extensionStatuses.join(" "), width, "...")));
+  return lines;
 }
 export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefined): () => void {
   let redraw = () => {};
@@ -63,7 +77,7 @@ export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefin
             contextPercent: usage?.percent, contextWindow: usage?.contextWindow,
             quota: statuses.get(QUOTA_STATUS), run: stats(),
             statuses: [...statuses],
-          }, width).map(line => theme.fg("dim", line));
+          }, width, theme);
         },
       };
     });
