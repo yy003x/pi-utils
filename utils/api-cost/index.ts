@@ -4,7 +4,7 @@ import { isCodexSubscription } from "../quota/core.ts";
 import { costPeriods, fetchCosts, formatCosts, isOpenAICostRoute, resolveCostKeyId } from "./core.ts";
 
 export const API_COST_STATUS = "pi-utils:api-cost";
-const REFRESH_MS = 5 * 60_000;
+const REFRESH_MS = 10 * 60_000;
 
 async function subscriptionToken(ctx: ExtensionContext): Promise<{ token?: string; reason?: string }> {
   const model = ctx.modelRegistry.getAll().find(model =>
@@ -93,7 +93,7 @@ export function registerApiCost(pi: ExtensionAPI, redraw: () => void = () => {})
     timer = undefined; context = ctx; reset(ctx);
     if (ctx.mode !== "tui") return;
     void refresh(ctx);
-    // 每分钟检查当前认证，费用请求限频为五分钟；不会把旧 Key 的快照给新 Key。
+    // 每分钟检查当前认证，费用请求限频为十分钟；不会把旧 Key 的快照给新 Key。
     timer = setInterval(() => { if (context) void refresh(context); }, 60_000);
     timer.unref();
   });

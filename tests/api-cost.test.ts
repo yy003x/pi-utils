@@ -104,12 +104,43 @@ test("每一页始终使用官方URL及单Key筛选和分组，带起止时间",
     assert.deepEqual(url.searchParams.getAll("api_key_ids[]"), [keyId]);
     assert.equal(url.searchParams.get("group_by[]"), "api_key_id");
     assert.equal(url.searchParams.get("start_time"), String(period.start));
-    assert.equal(url.searchParams.get("end_time"), String(period.end));
+    assert.equal(url.searchParams.get("end_time"), String(Date.parse("2026-04-01T00:00:00Z") / 1000));
+    assert.equal(url.searchParams.get("bucket_width"), "1d");
     assert.equal(url.searchParams.get("page"), cursor ?? null);
     assert.equal(url.searchParams.get("limit"), "180");
   }
   assert.throws(() => costsUrl(period, ""));
   assert.throws(() => costsUrl({ ...period, start: period.end }, keyId));
+});
+
+test("费用请求覆盖当天完整UTC日桶，跨月、跨年和零点不遗漏当前日期", () => {
+  for (const [current, nextDay] of [
+    ["2026-11-07T13:03:44Z", "2026-11-08T00:00:00Z"],
+    ["2026-11-07T00:00:00Z", "2026-11-08T00:00:00Z"],
+    ["2026-03-31T23:59:59Z", "2026-04-01T00:00:00Z"],
+    ["2026-12-31T23:59:59Z", "2027-01-01T00:00:00Z"],
+    ["2024-02-29T12:00:00Z", "2024-03-01T00:00:00Z"],
+    ["2026-11-08T01:00:00+08:00", "2026-11-08T00:00:00Z"],
+  ]) {
+    const time = Date.parse(current);
+    const periods = costPeriods(undefined, time).periods;
+    for (const period of periods) {
+      const before = { ...period };
+      const url = costsUrl(period, keyId);
+      assert.equal(url.searchParams.get("end_time"), String(Date.parse(nextDay) / 1000));
+      assert.equal(url.searchParams.get("start_time"), String(period.start));
+      assert.deepEqual(period, before);
+    }
+    assert.equal(formatCosts(periods.map(period => ({ ...period, usd: 1 }))), "1.0000$/7d 1.0000$/30d");
+  }
+});
+
+test("订阅费用也覆盖当天日桶，展示天数仍按查询时刻计算", () => {
+  const time = Date.parse("2026-03-31T08:00:00Z");
+  const period = costPeriods(token(auth), time).periods[0];
+  assert.equal(costsUrl(period, keyId).searchParams.get("end_time"), String(Date.parse("2026-04-01T00:00:00Z") / 1000));
+  assert.equal(period.end, time / 1000);
+  assert.equal(formatCosts([{ ...period, usd: 1 }]), "1.0000$/16d");
 });
 
 test("费用解析保留小额和负数调整，空结果是零，后续分页不能遗漏", () => {

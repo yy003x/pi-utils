@@ -83,7 +83,9 @@ export function costsUrl(period: CostPeriod, keyId: string, page?: string): URL 
   if (!validKeyId(keyId)) throw new Error("费用查询需要有效的单个 Key ID");
   const url = new URL(COSTS_URL);
   url.searchParams.set("start_time", String(period.start));
-  url.searchParams.set("end_time", String(period.end));
+  // Costs 按日返回：截止到当前秒会漏掉当天日桶，需覆盖至次日 UTC 零点。
+  // 只扩展请求边界，保留逻辑 end，避免展示的 7d/30d 或订阅天数多算一天。
+  url.searchParams.set("end_time", String((Math.floor(period.end / DAY) + 1) * DAY));
   url.searchParams.set("api_key_ids[]", keyId);
   url.searchParams.set("group_by[]", "api_key_id");
   url.searchParams.set("bucket_width", "1d");
