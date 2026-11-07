@@ -43,7 +43,7 @@ async function withHost(factory: (pi: ExtensionAPI) => void, verify: (session: A
   }
 }
 
-test("真实 Pi 加载仅两个命令，无输入、prompt、Provider、工具改写 hook", async () => {
+test("真实 Pi 仅加载cd和stats命令，费用无命令且非TUI不查询", async () => {
   await withHost(extension, async (session, manager) => {
     const runner = session.extensionRunner!;
     assert.deepEqual(runner.getRegisteredCommands().map(command => command.name).sort(), ["cd", "stats"]);

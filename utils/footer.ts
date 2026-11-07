@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { ExtensionAPI, Theme } from "@earendil-works/pi-coding-agent";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 import { QUOTA_STATUS } from "./quota/index.ts";
+import { API_COST_STATUS } from "./api-cost/index.ts";
 import { formatRun, type RunStats } from "./run-stats.ts";
 
 export interface FooterView {
@@ -14,6 +15,7 @@ export interface FooterView {
   contextPercent?: number | null;
   contextWindow?: number;
   quota?: string;
+  apiCost?: string;
   run?: RunStats;
   statuses: readonly (readonly [string, string])[];
 }
@@ -37,12 +39,12 @@ export function footerLines(view: FooterView, width: number, theme?: Pick<Theme,
   const locationLine = paint("dim", truncateToWidth(location, width, "..."));
   const context = `${view.contextPercent == null ? "—" : `${view.contextPercent.toFixed(1)}%`}/${view.contextWindow ? `${Math.round(view.contextWindow / 1000)}K` : "—"}`;
   const extensionStatuses = [...view.statuses]
-    .filter(([key]) => key !== QUOTA_STATUS)
+    .filter(([key]) => key !== QUOTA_STATUS && key !== API_COST_STATUS)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([, value]) => singleLine(value)).filter(Boolean);
   const right = paint("dim", [view.model, view.thinking].filter(Boolean).map(singleLine).join(" "));
   // 先清理外部文本，再添加主题转义序列；各字段独立着色。
-  const left = [context, view.quota, view.run && formatRun(view.run)]
+  const left = [context, view.apiCost ?? view.quota, view.run && formatRun(view.run)]
     .map((value, index) => typeof value === "string" && value.length > 0
       ? paint(index === 0 ? contextColor : "dim", singleLine(value)) : "")
     .filter(Boolean).join(" ");
@@ -76,6 +78,7 @@ export function registerFooter(pi: ExtensionAPI, stats: () => RunStats | undefin
             thinking: pi.getThinkingLevel(), cwd: ctx.cwd, home: homedir(), branch: data.getGitBranch(),
             contextPercent: usage?.percent, contextWindow: usage?.contextWindow,
             quota: statuses.get(QUOTA_STATUS), run: stats(),
+            apiCost: ctx.model?.provider === "openai" ? statuses.get(API_COST_STATUS) : undefined,
             statuses: [...statuses],
           }, width, theme);
         },

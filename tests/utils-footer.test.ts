@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { footerLines, singleLine, type FooterView } from "../utils/footer.ts";
 import { QUOTA_STATUS } from "../utils/quota/index.ts";
+import { API_COST_STATUS } from "../utils/api-cost/index.ts";
 
 const view: FooterView = { model: "openai-codex/gpt-6-astra", thinking: "high", cwd: join("/home", "user", "项目"), home: join("/home", "user"),
   branch: "main", contextPercent: 24.8, contextWindow: 512000, quota: "73%/1w/15h", statuses: [] };
@@ -23,6 +24,23 @@ test("第一行原生路径和分支，第二行统计及靠右模型，不重�
   assert.equal(sample[0], "~/.pi/agent/git/github.com/yy003x/pi-utils (main)");
   assert.match(sample[1], /^29\.0%\/512K 85%\/1w\/166h tools:8 token:126K turn:4 running:19m46s +openai-codex\/gpt-6-astra high$/);
   assert.equal(visibleWidth(sample[1]), 160);
+});
+test("费用复用第二行额度位置，不与额度并列且第三行不重复", () => {
+  for (const apiCost of ["0.0566$/7d 0.0566$/30d", "1.2346$/17d", "cost:auth", "cost:n/a", "cost:err", "cost:..."]) {
+    const input = { ...view, model: "openai/gpt-model", apiCost,
+      statuses: [[API_COST_STATUS, apiCost], [QUOTA_STATUS, view.quota!]] as const };
+    const lines = footerLines(input, 120);
+    assert.equal(lines.length, 2);
+    assert.ok(lines[1].startsWith(`24.8%/512K ${apiCost} `));
+    assert.doesNotMatch(lines[1], /73%|API cost|OPENAI_ADMIN_KEY|fallback/);
+    const withExternal = footerLines({ ...input, statuses: [...input.statuses, ["other", "external"]] }, 120);
+    assert.equal(withExternal[2], "external");
+    for (const width of [1, 20, 60, 80, 120]) {
+      assert.ok(footerLines(input, width).every(line => visibleWidth(line) <= width));
+    }
+  }
+  const codex = footerLines({ ...view, statuses: [[API_COST_STATUS, "过期费用状态"]] }, 120);
+  assert.deepEqual(codex, footerLines(view, 120));
 });
 const colors = { dim: "\x1b[90m", warning: "\x1b[33m", error: "\x1b[31m" };
 const theme = { fg: (color: string, text: string) => `${colors[color as keyof typeof colors]}${text}\x1b[39m` };

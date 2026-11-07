@@ -2,7 +2,7 @@
   "name": "pi-utils",
   "version": "3.0.0",
   "private": true,
-  "description": "极简 Pi 扩展：状态栏、订阅额度、运行统计和目录切换",
+  "description": "极简 Pi 扩展：状态栏、订阅额度、API 费用、运行统计和目录切换",
   "type": "module",
   "keywords": ["pi-package", "pi", "personal", "quota"],
   "author": "yy003x",
